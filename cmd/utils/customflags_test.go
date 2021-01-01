@@ -1,0 +1,30 @@
+// Copyright 2020 The go-fafjiadong wang
+// This file is part of the go-faf library.
+// The go-faf library is free software: you can redistribute it and/or modify
+
+
+package utils
+
+import (
+	"os"
+	"os/user"
+	"testing"
+)
+
+func TestPathExpansion(t *testing.T) {
+	user, _ := user.Current()
+	tests := map[string]string{
+		"/home/someuser/tmp": "/home/someuser/tmp",
+		"~/tmp":              user.HomeDir + "/tmp",
+		"~thisOtherUser/b/":  "~thisOtherUser/b",
+		"$DDDXXX/a/b":        "/tmp/a/b",
+		"/a/b/":              "/a/b",
+	}
+	os.Setenv("DDDXXX", "/tmp")
+	for test, expected := range tests {
+		got := expandPath(test)
+		if got != expected {
+			t.Errorf("test %s, got %s, expected %s\n", test, got, expected)
+		}
+	}
+}
