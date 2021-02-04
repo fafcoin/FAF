@@ -1,34 +1,32 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package rpc_test
 
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
-	"github.com/fafereum/go-fafereum/rpc"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // In this example, our client wishes to track the latest 'block number'
-// known to the server. The server supports two mfafods:
+// known to the server. The server supports two methods:
 //
-// faf_getBlockByNumber("latest", {})
+// eth_getBlockByNumber("latest", {})
 //    returns the latest block object.
 //
-// faf_subscribe("newBlocks")
+// eth_subscribe("newHeads")
 //    creates a subscription which fires block objects when new blocks arrive.
 
 type Block struct {
-	Number *big.Int
+	Number *hexutil.Big
 }
 
 func ExampleClientSubscription() {
 	// Connect the client.
-	client, _ := rpc.Dial("ws://127.0.0.1:8485")
+	client, _ := rpc.Dial("ws://127.0.0.1:8545")
 	subch := make(chan Block)
 
 	// Ensure that subch receives the latest block.
@@ -43,7 +41,7 @@ func ExampleClientSubscription() {
 
 	// Print events from the subscription as they arrive.
 	for block := range subch {
-		//fmt.Println("latest block:", block.Number)
+		fmt.Println("latest block:", block.Number)
 	}
 }
 
@@ -54,17 +52,18 @@ func subscribeBlocks(client *rpc.Client, subch chan Block) {
 	defer cancel()
 
 	// Subscribe to new blocks.
-	sub, err := client.fafSubscribe(ctx, subch, "newHeads")
+	sub, err := client.EthSubscribe(ctx, subch, "newHeads")
 	if err != nil {
-		//fmt.Println("subscribe error:", err)
+		fmt.Println("subscribe error:", err)
 		return
 	}
 
 	// The connection is established now.
 	// Update the channel with the current block.
 	var lastBlock Block
-	if err := client.CallContext(ctx, &lastBlock, "faf_getBlockByNumber", "latest"); err != nil {
-		//fmt.Println("can't get latest block:", err)
+	err = client.CallContext(ctx, &lastBlock, "eth_getBlockByNumber", "latest", false)
+	if err != nil {
+		fmt.Println("can't get latest block:", err)
 		return
 	}
 	subch <- lastBlock
@@ -72,5 +71,5 @@ func subscribeBlocks(client *rpc.Client, subch chan Block) {
 	// The subscription will deliver events to the channel. Wait for the
 	// subscription to end for any reason, then loop around to re-establish
 	// the connection.
-	//fmt.Println("connection lost: ", <-sub.Err())
+	fmt.Println("connection lost: ", <-sub.Err())
 }
