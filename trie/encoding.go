@@ -102,3 +102,4 @@ func prefixLen(a, b []byte) int {
 func hasTerm(s []byte) bool {
 	return len(s) > 0 && s[len(s)-1] == 16
 }
+
