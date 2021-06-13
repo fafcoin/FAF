@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package trie
 
@@ -9,8 +7,8 @@ import (
 	"container/heap"
 	"errors"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/rlp"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Iterator is a key-value trie iterator that traverses a Trie.
@@ -22,7 +20,9 @@ type Iterator struct {
 	Err   error
 }
 
-// NewIterator creates a new key-value iterator from a node iterator
+// NewIterator creates a new key-value iterator from a node iterator.
+// Note that the value returned by the iterator is raw. If the content is encoded
+// (e.g. storage value is RLP-encoded), it's caller's duty to decode it.
 func NewIterator(it NodeIterator) *Iterator {
 	return &Iterator{
 		nodeIt: it,
@@ -74,17 +74,17 @@ type NodeIterator interface {
 	// Leaf returns true iff the current node is a leaf node.
 	Leaf() bool
 
-	// LeafKey returns the key of the leaf. The mfafod panics if the iterator is not
+	// LeafKey returns the key of the leaf. The method panics if the iterator is not
 	// positioned at a leaf. Callers must not retain references to the value after
 	// calling Next.
 	LeafKey() []byte
 
-	// LeafBlob returns the content of the leaf. The mfafod panics if the iterator
+	// LeafBlob returns the content of the leaf. The method panics if the iterator
 	// is not positioned at a leaf. Callers must not retain references to the value
 	// after calling Next.
 	LeafBlob() []byte
 
-	// LeafProof returns the Merkle proof of the leaf. The mfafod panics if the
+	// LeafProof returns the Merkle proof of the leaf. The method panics if the
 	// iterator is not positioned at a leaf. Callers must not retain references
 	// to the value after calling Next.
 	LeafProof() [][]byte
@@ -159,7 +159,7 @@ func (it *nodeIterator) LeafKey() []byte {
 func (it *nodeIterator) LeafBlob() []byte {
 	if len(it.stack) > 0 {
 		if node, ok := it.stack[len(it.stack)-1].node.(valueNode); ok {
-			return []byte(node)
+			return node
 		}
 	}
 	panic("not at leaf")
@@ -168,15 +168,13 @@ func (it *nodeIterator) LeafBlob() []byte {
 func (it *nodeIterator) LeafProof() [][]byte {
 	if len(it.stack) > 0 {
 		if _, ok := it.stack[len(it.stack)-1].node.(valueNode); ok {
-			hasher := newHasher(0, 0, nil)
+			hasher := newHasher(false)
 			defer returnHasherToPool(hasher)
-
 			proofs := make([][]byte, 0, len(it.stack))
 
 			for i, item := range it.stack[:len(it.stack)-1] {
 				// Gather nodes that end up as hash nodes (or the root)
-				node, _, _ := hasher.hashChildren(item.node, nil)
-				hashed, _ := hasher.store(node, nil, false)
+				node, hashed := hasher.proofHash(item.node)
 				if _, ok := hashed.(hashNode); ok || i == 0 {
 					enc, _ := rlp.EncodeToBytes(node)
 					proofs = append(proofs, enc)
@@ -202,8 +200,8 @@ func (it *nodeIterator) Error() error {
 	return it.err
 }
 
-// Next moves the iterator to the next node, returning whfafer there are any
-// further nodes. In case of an internal error this mfafod returns false and
+// Next moves the iterator to the next node, returning whether there are any
+// further nodes. In case of an internal error this method returns false and
 // sets the Error field to the encountered failure. If `descend` is false,
 // skips iterating over any subnodes of the current node.
 func (it *nodeIterator) Next(descend bool) bool {

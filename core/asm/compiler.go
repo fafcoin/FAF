@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package asm
 
@@ -11,8 +22,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/common/math"
-	"github.com/fafereum/go-fafereum/core/vm"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 // Compiler contains information about the parsed source
@@ -46,6 +57,7 @@ func NewCompiler(debug bool) *Compiler {
 // second stage to push labels and determine the right
 // position.
 func (c *Compiler) Feed(ch <-chan token) {
+	var prev token
 	for i := range ch {
 		switch i.typ {
 		case number:
@@ -62,10 +74,14 @@ func (c *Compiler) Feed(ch <-chan token) {
 			c.labels[i.text] = c.pc
 			c.pc++
 		case label:
-			c.pc += 5
+			c.pc += 4
+			if prev.typ == element && isJump(prev.text) {
+				c.pc++
+			}
 		}
 
 		c.tokens = append(c.tokens, i)
+		prev = i
 	}
 	if c.debug {
 		fmt.Fprintln(os.Stderr, "found", len(c.labels), "labels")
@@ -170,6 +186,8 @@ func (c *Compiler) compileElement(element token) error {
 			pos := big.NewInt(int64(c.labels[rvalue.text])).Bytes()
 			pos = append(make([]byte, 4-len(pos)), pos...)
 			c.pushBin(pos)
+		case lineEnd:
+			c.pos--
 		default:
 			return compileErr(rvalue, rvalue.text, "number, string or label")
 		}
@@ -190,8 +208,8 @@ func (c *Compiler) compileElement(element token) error {
 		case stringValue:
 			value = []byte(rvalue.text[1 : len(rvalue.text)-1])
 		case label:
-			value = make([]byte, 4)
-			copy(value, big.NewInt(int64(c.labels[rvalue.text])).Bytes())
+			value = big.NewInt(int64(c.labels[rvalue.text])).Bytes()
+			value = append(make([]byte, 4-len(value)), value...)
 		default:
 			return compileErr(rvalue, rvalue.text, "number, string or label")
 		}
@@ -222,13 +240,13 @@ func (c *Compiler) pushBin(v interface{}) {
 	c.binary = append(c.binary, v)
 }
 
-// isPush returns whfafer the string op is either any of
+// isPush returns whether the string op is either any of
 // push(N).
 func isPush(op string) bool {
 	return strings.ToUpper(op) == "PUSH"
 }
 
-// isJump returns whfafer the string op is jump(i)
+// isJump returns whether the string op is jump(i)
 func isJump(op string) bool {
 	return strings.ToUpper(op) == "JUMPI" || strings.ToUpper(op) == "JUMP"
 }

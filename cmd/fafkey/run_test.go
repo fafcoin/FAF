@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2018 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -11,24 +22,24 @@ import (
 	"testing"
 
 	"github.com/docker/docker/pkg/reexec"
-	"github.com/fafereum/go-fafereum/internal/cmdtest"
+	"github.com/ethereum/go-ethereum/internal/cmdtest"
 )
 
-type testfafkey struct {
+type testEthkey struct {
 	*cmdtest.TestCmd
 }
 
-// spawns fafkey with the given command line args.
-func runfafkey(t *testing.T, args ...string) *testfafkey {
-	tt := new(testfafkey)
+// spawns ethkey with the given command line args.
+func runEthkey(t *testing.T, args ...string) *testEthkey {
+	tt := new(testEthkey)
 	tt.TestCmd = cmdtest.NewTestCmd(t, tt)
-	tt.Run("fafkey-test", args...)
+	tt.Run("ethkey-test", args...)
 	return tt
 }
 
 func TestMain(m *testing.M) {
-	// Run the app if we've been exec'd as "fafkey-test" in runfafkey.
-	reexec.Register("fafkey-test", func() {
+	// Run the app if we've been exec'd as "ethkey-test" in runEthkey.
+	reexec.Register("ethkey-test", func() {
 		if err := app.Run(os.Args); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)

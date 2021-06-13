@@ -1,14 +1,25 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package bloombits
 
 import (
 	"errors"
 
-	"github.com/fafereum/go-fafereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
@@ -25,7 +36,7 @@ var (
 // to be used for batched filtering.
 type Generator struct {
 	blooms   [types.BloomBitLength][]byte // Rotated blooms for per-bit matching
-	sections uint                         // Number of sections to batch togfafer
+	sections uint                         // Number of sections to batch together
 	nextSec  uint                         // Next section to set when adding a bloom
 }
 
@@ -54,18 +65,23 @@ func (b *Generator) AddBloom(index uint, bloom types.Bloom) error {
 	}
 	// Rotate the bloom and insert into our collection
 	byteIndex := b.nextSec / 8
-	bitMask := byte(1) << byte(7-b.nextSec%8)
-
-	for i := 0; i < types.BloomBitLength; i++ {
-		bloomByteIndex := types.BloomByteLength - 1 - i/8
-		bloomBitMask := byte(1) << byte(i%8)
-
-		if (bloom[bloomByteIndex] & bloomBitMask) != 0 {
-			b.blooms[i][byteIndex] |= bitMask
+	bitIndex := byte(7 - b.nextSec%8)
+	for byt := 0; byt < types.BloomByteLength; byt++ {
+		bloomByte := bloom[types.BloomByteLength-1-byt]
+		if bloomByte == 0 {
+			continue
 		}
+		base := 8 * byt
+		b.blooms[base+7][byteIndex] |= ((bloomByte >> 7) & 1) << bitIndex
+		b.blooms[base+6][byteIndex] |= ((bloomByte >> 6) & 1) << bitIndex
+		b.blooms[base+5][byteIndex] |= ((bloomByte >> 5) & 1) << bitIndex
+		b.blooms[base+4][byteIndex] |= ((bloomByte >> 4) & 1) << bitIndex
+		b.blooms[base+3][byteIndex] |= ((bloomByte >> 3) & 1) << bitIndex
+		b.blooms[base+2][byteIndex] |= ((bloomByte >> 2) & 1) << bitIndex
+		b.blooms[base+1][byteIndex] |= ((bloomByte >> 1) & 1) << bitIndex
+		b.blooms[base][byteIndex] |= (bloomByte & 1) << bitIndex
 	}
 	b.nextSec++
-
 	return nil
 }
 

@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -12,8 +23,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -25,7 +36,7 @@ func (w *wizard) networkStats() {
 		return
 	}
 	// Clear out some previous configs to refill from current scan
-	w.conf.fafstats = ""
+	w.conf.ethstats = ""
 	w.conf.bootnodes = w.conf.bootnodes[:0]
 
 	// Iterate over all the specified hosts and check their status
@@ -63,7 +74,7 @@ func (w *wizard) gatherStats(server string, pubkey []byte, client *sshClient) *s
 	// Gather some global stats to feed into the wizard
 	var (
 		genesis   string
-		fafstats  string
+		ethstats  string
 		bootnodes []string
 	)
 	// Ensure a valid SSH connection to the remote server
@@ -93,14 +104,14 @@ func (w *wizard) gatherStats(server string, pubkey []byte, client *sshClient) *s
 	} else {
 		stat.services["nginx"] = infos.Report()
 	}
-	logger.Debug("Checking for fafstats availability")
-	if infos, err := checkfafstats(client, w.network); err != nil {
+	logger.Debug("Checking for ethstats availability")
+	if infos, err := checkEthstats(client, w.network); err != nil {
 		if err != ErrServiceUnknown {
-			stat.services["fafstats"] = map[string]string{"offline": err.Error()}
+			stat.services["ethstats"] = map[string]string{"offline": err.Error()}
 		}
 	} else {
-		stat.services["fafstats"] = infos.Report()
-		fafstats = infos.config
+		stat.services["ethstats"] = infos.Report()
+		ethstats = infos.config
 	}
 	logger.Debug("Checking for bootnode availability")
 	if infos, err := checkNode(client, w.network, true); err != nil {
@@ -166,8 +177,8 @@ func (w *wizard) gatherStats(server string, pubkey []byte, client *sshClient) *s
 			w.conf.Genesis = g
 		}
 	}
-	if fafstats != "" {
-		w.conf.fafstats = fafstats
+	if ethstats != "" {
+		w.conf.ethstats = ethstats
 	}
 	w.conf.bootnodes = append(w.conf.bootnodes, bootnodes...)
 
@@ -191,7 +202,7 @@ func (stats serverStats) render() {
 	// Start gathering service statistics and config parameters
 	table := tablewriter.NewWriter(os.Stdout)
 
-	table.Sfafeader([]string{"Server", "Address", "Service", "Config", "Value"})
+	table.SetHeader([]string{"Server", "Address", "Service", "Config", "Value"})
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	table.SetColWidth(40)
 

@@ -1,162 +1,236 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package les
 
 import (
 	"context"
+	"errors"
 	"math/big"
 
-	"github.com/fafereum/go-fafereum/accounts"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/common/math"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/bloombits"
-	"github.com/fafereum/go-fafereum/core/rawdb"
-	"github.com/fafereum/go-fafereum/core/state"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/core/vm"
-	"github.com/fafereum/go-fafereum/faf/downloader"
-	"github.com/fafereum/go-fafereum/faf/gasprice"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/event"
-	"github.com/fafereum/go-fafereum/light"
-	"github.com/fafereum/go-fafereum/params"
-	"github.com/fafereum/go-fafereum/rpc"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/bloombits"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/light"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type LesApiBackend struct {
-	faf *Lightfafereum
-	gpo *gasprice.Oracle
+	extRPCEnabled bool
+	eth           *LightEthereum
+	gpo           *gasprice.Oracle
 }
 
 func (b *LesApiBackend) ChainConfig() *params.ChainConfig {
-	return b.faf.chainConfig
+	return b.eth.chainConfig
 }
 
 func (b *LesApiBackend) CurrentBlock() *types.Block {
-	return types.NewBlockWithHeader(b.faf.BlockChain().CurrentHeader())
+	return types.NewBlockWithHeader(b.eth.BlockChain().CurrentHeader())
 }
 
-func (b *LesApiBackend) Sfafead(number uint64) {
-	b.faf.protocolManager.downloader.Cancel()
-	b.faf.blockchain.Sfafead(number)
+func (b *LesApiBackend) SetHead(number uint64) {
+	b.eth.handler.downloader.Cancel()
+	b.eth.blockchain.SetHead(number)
 }
 
-func (b *LesApiBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error) {
-	if blockNr == rpc.LatestBlockNumber || blockNr == rpc.PendingBlockNumber {
-		return b.faf.blockchain.CurrentHeader(), nil
+func (b *LesApiBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
+	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
+		return b.eth.blockchain.CurrentHeader(), nil
 	}
-	return b.faf.blockchain.GfafeaderByNumberOdr(ctx, uint64(blockNr))
+	return b.eth.blockchain.GetHeaderByNumberOdr(ctx, uint64(number))
+}
+
+func (b *LesApiBackend) HeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Header, error) {
+	if blockNr, ok := blockNrOrHash.Number(); ok {
+		return b.HeaderByNumber(ctx, blockNr)
+	}
+	if hash, ok := blockNrOrHash.Hash(); ok {
+		header, err := b.HeaderByHash(ctx, hash)
+		if err != nil {
+			return nil, err
+		}
+		if header == nil {
+			return nil, errors.New("header for hash not found")
+		}
+		if blockNrOrHash.RequireCanonical && b.eth.blockchain.GetCanonicalHash(header.Number.Uint64()) != hash {
+			return nil, errors.New("hash is not currently canonical")
+		}
+		return header, nil
+	}
+	return nil, errors.New("invalid arguments; neither block nor hash specified")
 }
 
 func (b *LesApiBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
-	return b.faf.blockchain.GfafeaderByHash(hash), nil
+	return b.eth.blockchain.GetHeaderByHash(hash), nil
 }
 
-func (b *LesApiBackend) BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Block, error) {
-	header, err := b.HeaderByNumber(ctx, blockNr)
+func (b *LesApiBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
+	header, err := b.HeaderByNumber(ctx, number)
 	if header == nil || err != nil {
 		return nil, err
 	}
-	return b.GetBlock(ctx, header.Hash())
+	return b.BlockByHash(ctx, header.Hash())
 }
 
-func (b *LesApiBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
-	header, err := b.HeaderByNumber(ctx, blockNr)
-	if header == nil || err != nil {
+func (b *LesApiBackend) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
+	return b.eth.blockchain.GetBlockByHash(ctx, hash)
+}
+
+func (b *LesApiBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Block, error) {
+	if blockNr, ok := blockNrOrHash.Number(); ok {
+		return b.BlockByNumber(ctx, blockNr)
+	}
+	if hash, ok := blockNrOrHash.Hash(); ok {
+		block, err := b.BlockByHash(ctx, hash)
+		if err != nil {
+			return nil, err
+		}
+		if block == nil {
+			return nil, errors.New("header found, but block body is missing")
+		}
+		if blockNrOrHash.RequireCanonical && b.eth.blockchain.GetCanonicalHash(block.NumberU64()) != hash {
+			return nil, errors.New("hash is not currently canonical")
+		}
+		return block, nil
+	}
+	return nil, errors.New("invalid arguments; neither block nor hash specified")
+}
+
+func (b *LesApiBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
+	header, err := b.HeaderByNumber(ctx, number)
+	if err != nil {
 		return nil, nil, err
 	}
-	return light.NewState(ctx, header, b.faf.odr), header, nil
+	if header == nil {
+		return nil, nil, errors.New("header not found")
+	}
+	return light.NewState(ctx, header, b.eth.odr), header, nil
 }
 
-func (b *LesApiBackend) GetBlock(ctx context.Context, blockHash common.Hash) (*types.Block, error) {
-	return b.faf.blockchain.GetBlockByHash(ctx, blockHash)
+func (b *LesApiBackend) StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*state.StateDB, *types.Header, error) {
+	if blockNr, ok := blockNrOrHash.Number(); ok {
+		return b.StateAndHeaderByNumber(ctx, blockNr)
+	}
+	if hash, ok := blockNrOrHash.Hash(); ok {
+		header := b.eth.blockchain.GetHeaderByHash(hash)
+		if header == nil {
+			return nil, nil, errors.New("header for hash not found")
+		}
+		if blockNrOrHash.RequireCanonical && b.eth.blockchain.GetCanonicalHash(header.Number.Uint64()) != hash {
+			return nil, nil, errors.New("hash is not currently canonical")
+		}
+		return light.NewState(ctx, header, b.eth.odr), header, nil
+	}
+	return nil, nil, errors.New("invalid arguments; neither block nor hash specified")
 }
 
 func (b *LesApiBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	if number := rawdb.ReadHeaderNumber(b.faf.chainDb, hash); number != nil {
-		return light.GetBlockReceipts(ctx, b.faf.odr, hash, *number)
+	if number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
+		return light.GetBlockReceipts(ctx, b.eth.odr, hash, *number)
 	}
 	return nil, nil
 }
 
 func (b *LesApiBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
-	if number := rawdb.ReadHeaderNumber(b.faf.chainDb, hash); number != nil {
-		return light.GetBlockLogs(ctx, b.faf.odr, hash, *number)
+	if number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
+		return light.GetBlockLogs(ctx, b.eth.odr, hash, *number)
 	}
 	return nil, nil
 }
 
-func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
-	return b.faf.blockchain.GetTdByHash(hash)
+func (b *LesApiBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
+	if number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
+		return b.eth.blockchain.GetTdOdr(ctx, hash, *number)
+	}
+	return nil
 }
 
 func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
-	state.SetBalance(msg.From(), math.MaxBig256)
-	context := core.NewEVMContext(msg, header, b.faf.blockchain, nil)
-	return vm.NewEVM(context, state, b.faf.chainConfig, vm.Config{}), state.Error, nil
+	txContext := core.NewEVMTxContext(msg)
+	context := core.NewEVMBlockContext(header, b.eth.blockchain, nil)
+	return vm.NewEVM(context, txContext, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 
 func (b *LesApiBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
-	return b.faf.txPool.Add(ctx, signedTx)
+	return b.eth.txPool.Add(ctx, signedTx)
 }
 
 func (b *LesApiBackend) RemoveTx(txHash common.Hash) {
-	b.faf.txPool.RemoveTx(txHash)
+	b.eth.txPool.RemoveTx(txHash)
 }
 
 func (b *LesApiBackend) GetPoolTransactions() (types.Transactions, error) {
-	return b.faf.txPool.GetTransactions()
+	return b.eth.txPool.GetTransactions()
 }
 
 func (b *LesApiBackend) GetPoolTransaction(txHash common.Hash) *types.Transaction {
-	return b.faf.txPool.GetTransaction(txHash)
+	return b.eth.txPool.GetTransaction(txHash)
+}
+
+func (b *LesApiBackend) GetTransaction(ctx context.Context, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error) {
+	return light.GetTransaction(ctx, b.eth.odr, txHash)
 }
 
 func (b *LesApiBackend) GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error) {
-	return b.faf.txPool.GetNonce(ctx, addr)
+	return b.eth.txPool.GetNonce(ctx, addr)
 }
 
 func (b *LesApiBackend) Stats() (pending int, queued int) {
-	return b.faf.txPool.Stats(), 0
+	return b.eth.txPool.Stats(), 0
 }
 
 func (b *LesApiBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
-	return b.faf.txPool.Content()
+	return b.eth.txPool.Content()
 }
 
 func (b *LesApiBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
-	return b.faf.txPool.SubscribeNewTxsEvent(ch)
+	return b.eth.txPool.SubscribeNewTxsEvent(ch)
 }
 
 func (b *LesApiBackend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
-	return b.faf.blockchain.SubscribeChainEvent(ch)
+	return b.eth.blockchain.SubscribeChainEvent(ch)
 }
 
 func (b *LesApiBackend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription {
-	return b.faf.blockchain.SubscribeChainHeadEvent(ch)
+	return b.eth.blockchain.SubscribeChainHeadEvent(ch)
 }
 
 func (b *LesApiBackend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
-	return b.faf.blockchain.SubscribeChainSideEvent(ch)
+	return b.eth.blockchain.SubscribeChainSideEvent(ch)
 }
 
 func (b *LesApiBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
-	return b.faf.blockchain.SubscribeLogsEvent(ch)
+	return b.eth.blockchain.SubscribeLogsEvent(ch)
+}
+
+func (b *LesApiBackend) SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Subscription {
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		<-quit
+		return nil
+	})
 }
 
 func (b *LesApiBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
-	return b.faf.blockchain.SubscribeRemovedLogsEvent(ch)
+	return b.eth.blockchain.SubscribeRemovedLogsEvent(ch)
 }
 
 func (b *LesApiBackend) Downloader() *downloader.Downloader {
-	return b.faf.Downloader()
+	return b.eth.Downloader()
 }
 
 func (b *LesApiBackend) ProtocolVersion() int {
-	return b.faf.LesVersion() + 10000
+	return b.eth.LesVersion() + 10000
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
@@ -164,31 +238,43 @@ func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 }
 
 func (b *LesApiBackend) ChainDb() fafdb.Database {
-	return b.faf.chainDb
-}
-
-func (b *LesApiBackend) EventMux() *event.TypeMux {
-	return b.faf.eventMux
+	return b.eth.chainDb
 }
 
 func (b *LesApiBackend) AccountManager() *accounts.Manager {
-	return b.faf.accountManager
+	return b.eth.accountManager
 }
 
-func (b *LesApiBackend) RPCGasCap() *big.Int {
-	return b.faf.config.RPCGasCap
+func (b *LesApiBackend) ExtRPCEnabled() bool {
+	return b.extRPCEnabled
+}
+
+func (b *LesApiBackend) RPCGasCap() uint64 {
+	return b.eth.config.RPCGasCap
+}
+
+func (b *LesApiBackend) RPCTxFeeCap() float64 {
+	return b.eth.config.RPCTxFeeCap
 }
 
 func (b *LesApiBackend) BloomStatus() (uint64, uint64) {
-	if b.faf.bloomIndexer == nil {
+	if b.eth.bloomIndexer == nil {
 		return 0, 0
 	}
-	sections, _, _ := b.faf.bloomIndexer.Sections()
+	sections, _, _ := b.eth.bloomIndexer.Sections()
 	return params.BloomBitsBlocksClient, sections
 }
 
 func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {
 	for i := 0; i < bloomFilterThreads; i++ {
-		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, b.faf.bloomRequests)
+		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, b.eth.bloomRequests)
 	}
+}
+
+func (b *LesApiBackend) Engine() consensus.Engine {
+	return b.eth.engine
+}
+
+func (b *LesApiBackend) CurrentHeader() *types.Header {
+	return b.eth.blockchain.CurrentHeader()
 }

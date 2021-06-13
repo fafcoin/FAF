@@ -118,8 +118,8 @@ func Example() {
 	t.Time(func() { time.Sleep(10 * time.Millisecond) })
 	t.Update(1)
 
-	//fmt.Println(c.Count())
-	//fmt.Println(t.Min())
+	fmt.Println(c.Count())
+	fmt.Println(t.Min())
 	// Output: 17
 	// 1
 }

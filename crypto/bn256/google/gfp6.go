@@ -1,6 +1,6 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 package bn256
 
@@ -117,7 +117,7 @@ func (e *gfP6) Double(a *gfP6) *gfP6 {
 
 func (e *gfP6) Mul(a, b *gfP6, pool *bnPool) *gfP6 {
 	// "Multiplication and Squaring on Pairing-Friendly Fields"
-	// Section 4, Karatsuba mfafod.
+	// Section 4, Karatsuba method.
 	// http://eprint.iacr.org/2006/471.pdf
 
 	v0 := newGFp2(pool)

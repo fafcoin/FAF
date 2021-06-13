@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package event
 
@@ -90,7 +88,7 @@ func TestResubscribe(t *testing.T) {
 func TestResubscribeAbort(t *testing.T) {
 	t.Parallel()
 
-	done := make(chan error)
+	done := make(chan error, 1)
 	sub := Resubscribe(0, func(ctx context.Context) (Subscription, error) {
 		select {
 		case <-ctx.Done():

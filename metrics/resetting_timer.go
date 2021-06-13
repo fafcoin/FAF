@@ -233,7 +233,7 @@ func (t *ResettingTimerSnapshot) calc(percentiles []float64) {
 	t.calculated = true
 }
 
-// Int64Slice attaches the mfafods of sort.Interface to []int64, sorting in increasing order.
+// Int64Slice attaches the methods of sort.Interface to []int64, sorting in increasing order.
 type Int64Slice []int64
 
 func (s Int64Slice) Len() int           { return len(s) }

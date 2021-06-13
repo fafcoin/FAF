@@ -1,19 +1,5 @@
-// Copyright 2018 The go-fafereum Authors
-// This file is part of go-fafereum.
-//
-// go-fafereum is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// go-fafereum is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with go-fafereum. If not, see <http://www.gnu.org/licenses/>.
-//
+
+
 package storage
 
 import (
@@ -23,8 +9,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/mattn/go-colorable"
 )
 
@@ -38,13 +24,13 @@ func TestEncryption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("Ciphertext %x, nonce %x\n", c, iv)
+	t.Logf("Ciphertext %x, nonce %x\n", c, iv)
 
 	p, err := decrypt(key, iv, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("Plaintext %v\n", string(p))
+	t.Logf("Plaintext %v\n", string(p))
 	if !bytes.Equal(plaintext, p) {
 		t.Errorf("Failed: expected plaintext recovery, got %v expected %v", string(plaintext), string(p))
 	}
@@ -62,7 +48,7 @@ func TestFileStorage(t *testing.T) {
 			CipherText: common.Hex2Bytes("2df87baf86b5073ef1f03e3cc738de75b511400f5465bb0ddeacf47ae4dc267d"),
 		},
 	}
-	d, err := ioutil.TempDir("", "faf-encrypted-storage-test")
+	d, err := ioutil.TempDir("", "eth-encrypted-storage-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,9 +79,9 @@ func TestFileStorage(t *testing.T) {
 	}
 }
 func TestEnd2End(t *testing.T) {
-	log.Root().Sfafandler(log.LvlFilterHandler(log.Lvl(3), log.StreamHandler(colorable.NewColorableStderr(), log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(3), log.StreamHandler(colorable.NewColorableStderr(), log.TerminalFormat(true))))
 
-	d, err := ioutil.TempDir("", "faf-encrypted-storage-test")
+	d, err := ioutil.TempDir("", "eth-encrypted-storage-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,17 +96,17 @@ func TestEnd2End(t *testing.T) {
 	}
 
 	s1.Put("bazonk", "foobar")
-	if v := s2.Get("bazonk"); v != "foobar" {
-		t.Errorf("Expected bazonk->foobar, got '%v'", v)
+	if v, err := s2.Get("bazonk"); v != "foobar" || err != nil {
+		t.Errorf("Expected bazonk->foobar (nil error), got '%v' (%v error)", v, err)
 	}
 }
 
 func TestSwappedKeys(t *testing.T) {
 	// It should not be possible to swap the keys/values, so that
 	// K1:V1, K2:V2 can be swapped into K1:V2, K2:V1
-	log.Root().Sfafandler(log.LvlFilterHandler(log.Lvl(3), log.StreamHandler(colorable.NewColorableStderr(), log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(3), log.StreamHandler(colorable.NewColorableStderr(), log.TerminalFormat(true))))
 
-	d, err := ioutil.TempDir("", "faf-encrypted-storage-test")
+	d, err := ioutil.TempDir("", "eth-encrypted-storage-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,11 +140,11 @@ func TestSwappedKeys(t *testing.T) {
 		}
 	}
 	swap()
-	if v := s1.Get("k1"); v != "" {
+	if v, _ := s1.Get("k1"); v != "" {
 		t.Errorf("swapped value should return empty")
 	}
 	swap()
-	if v := s1.Get("k1"); v != "v1" {
+	if v, _ := s1.Get("k1"); v != "v1" {
 		t.Errorf("double-swapped value should work fine")
 	}
 }

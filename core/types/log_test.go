@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package types
@@ -12,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 var unmarshalLogTests = map[string]struct {
@@ -91,7 +88,7 @@ var unmarshalLogTests = map[string]struct {
 }
 
 func TestUnmarshalLog(t *testing.T) {
-	dumper := spew.ConfigState{DisableMfafods: true, Indent: "    "}
+	dumper := spew.ConfigState{DisableMethods: true, Indent: "    "}
 	for name, test := range unmarshalLogTests {
 		var log *Log
 		err := json.Unmarshal([]byte(test.input), &log)

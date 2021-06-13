@@ -1,13 +1,12 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package vm
 
 import (
 	"math/big"
 
-	"github.com/fafereum/go-fafereum/common"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 )
 
 // ContractRef is a reference to the contract's backing object
@@ -27,11 +26,11 @@ type AccountRef common.Address
 // Address casts AccountRef to a Address
 func (ar AccountRef) Address() common.Address { return (common.Address)(ar) }
 
-// Contract represents an fafereum contract in the state database. It contains
+// Contract represents an ethereum contract in the state database. It contains
 // the contract code, calling arguments. Contract implements ContractRef
 type Contract struct {
 	// CallerAddress is the result of the caller which initialised this
-	// contract. However when the "call mfafod" is delegated this value
+	// contract. However when the "call method" is delegated this value
 	// needs to be initialised to that of the caller's caller.
 	CallerAddress common.Address
 	caller        ContractRef
@@ -69,18 +68,43 @@ func NewContract(caller ContractRef, object ContractRef, value *big.Int, gas uin
 	return c
 }
 
-func (c *Contract) validJumpdest(dest *big.Int) bool {
-	udest := dest.Uint64()
+func (c *Contract) validJumpdest(dest *uint256.Int) bool {
+	udest, overflow := dest.Uint64WithOverflow()
 	// PC cannot go beyond len(code) and certainly can't be bigger than 63bits.
 	// Don't bother checking for JUMPDEST in that case.
-	if dest.BitLen() >= 63 || udest >= uint64(len(c.Code)) {
+	if overflow || udest >= uint64(len(c.Code)) {
 		return false
 	}
 	// Only JUMPDESTs allowed for destinations
 	if OpCode(c.Code[udest]) != JUMPDEST {
 		return false
 	}
+	return c.isCode(udest)
+}
+
+func (c *Contract) validJumpSubdest(udest uint64) bool {
+	// PC cannot go beyond len(code) and certainly can't be bigger than 63 bits.
+	// Don't bother checking for BEGINSUB in that case.
+	if int64(udest) < 0 || udest >= uint64(len(c.Code)) {
+		return false
+	}
+	// Only BEGINSUBs allowed for destinations
+	if OpCode(c.Code[udest]) != BEGINSUB {
+		return false
+	}
+	return c.isCode(udest)
+}
+
+// isCode returns true if the provided PC location is an actual opcode, as
+// opposed to a data-segment following a PUSHN operation.
+func (c *Contract) isCode(udest uint64) bool {
+	// Do we already have an analysis laying around?
+	if c.analysis != nil {
+		return c.analysis.codeSegment(udest)
+	}
 	// Do we have a contract hash already?
+	// If we do have a hash, that means it's a 'regular' contract. For regular
+	// contracts ( not temporary initcode), we store the analysis in a map
 	if c.CodeHash != (common.Hash{}) {
 		// Does parent context have the analysis?
 		analysis, exist := c.jumpdests[c.CodeHash]
@@ -90,6 +114,8 @@ func (c *Contract) validJumpdest(dest *big.Int) bool {
 			analysis = codeBitmap(c.Code)
 			c.jumpdests[c.CodeHash] = analysis
 		}
+		// Also stash it in current contract for faster access
+		c.analysis = analysis
 		return analysis.codeSegment(udest)
 	}
 	// We don't have the code hash, most likely a piece of initcode not already
@@ -106,7 +132,7 @@ func (c *Contract) validJumpdest(dest *big.Int) bool {
 // contract (for chaining calls)
 func (c *Contract) AsDelegate() *Contract {
 	// NOTE: caller must, at all times be a contract. It should never happen
-	// that caller is somfafing other than a Contract.
+	// that caller is something other than a Contract.
 	parent := c.caller.(*Contract)
 	c.CallerAddress = parent.CallerAddress
 	c.value = parent.value
@@ -150,7 +176,7 @@ func (c *Contract) Address() common.Address {
 	return c.self.Address()
 }
 
-// Value returns the contracts value (sent to it from it's caller)
+// Value returns the contract's value (sent to it from it's caller)
 func (c *Contract) Value() *big.Int {
 	return c.value
 }

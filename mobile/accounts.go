@@ -1,20 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains all the wrappers from the accounts package to support client side key
 // management on mobile platforms.
 
-package gfaf
+package geth
 
 import (
 	"errors"
 	"time"
 
-	"github.com/fafereum/go-fafereum/accounts"
-	"github.com/fafereum/go-fafereum/accounts/keystore"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/crypto"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -81,7 +79,7 @@ func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 	return &KeyStore{keystore: keystore.NewKeyStore(keydir, scryptN, scryptP)}
 }
 
-// HasAddress reports whfafer a key with the given address is present.
+// HasAddress reports whether a key with the given address is present.
 func (ks *KeyStore) HasAddress(address *Address) bool {
 	return ks.keystore.HasAddress(address.address)
 }
@@ -198,7 +196,7 @@ func (ks *KeyStore) ImportECDSAKey(key []byte, passphrase string) (account *Acco
 	return &Account{acc}, nil
 }
 
-// ImportPreSaleKey decrypts the given fafereum presale wallet and stores
+// ImportPreSaleKey decrypts the given Ethereum presale wallet and stores
 // a key file in the key directory. The key file is encrypted with the same passphrase.
 func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (ccount *Account, _ error) {
 	account, err := ks.keystore.ImportPreSaleKey(common.CopyBytes(keyJSON), passphrase)

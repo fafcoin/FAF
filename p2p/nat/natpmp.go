@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package nat
 
@@ -10,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackpal/go-nat-pmp"
+	natpmp "github.com/jackpal/go-nat-pmp"
 )
 
 // natPMPClient adapts the NAT-PMP protocol implementation so it conforms to

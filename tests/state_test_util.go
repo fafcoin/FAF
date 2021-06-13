@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package tests
 
@@ -9,24 +7,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/common/hexutil"
-	"github.com/fafereum/go-fafereum/common/math"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/state"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/core/vm"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/params"
-	"github.com/fafereum/go-fafereum/rlp"
+	"github.com/ethereum/go-ethereum/core/state/snapshot"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
 // StateTest checks transaction processing without block context.
-// See https://github.com/fafereum/EIPs/issues/176 for the test format specification.
+// See https://github.com/ethereum/EIPs/issues/176 for the test format specification.
 type StateTest struct {
 	json stJSON
 }
@@ -96,6 +98,32 @@ type stTransactionMarshaling struct {
 	PrivateKey hexutil.Bytes
 }
 
+// GetChainConfig takes a fork definition and returns a chain config.
+// The fork definition can be
+// - a plain forkname, e.g. `Byzantium`,
+// - a fork basename, and a list of EIPs to enable; e.g. `Byzantium+1884+1283`.
+func GetChainConfig(forkString string) (baseConfig *params.ChainConfig, eips []int, err error) {
+	var (
+		splitForks            = strings.Split(forkString, "+")
+		ok                    bool
+		baseName, eipsStrings = splitForks[0], splitForks[1:]
+	)
+	if baseConfig, ok = Forks[baseName]; !ok {
+		return nil, nil, UnsupportedForkError{baseName}
+	}
+	for _, eip := range eipsStrings {
+		if eipNum, err := strconv.Atoi(eip); err != nil {
+			return nil, nil, fmt.Errorf("syntax error, invalid eip number %v", eipNum)
+		} else {
+			if !vm.ValidEip(eipNum) {
+				return nil, nil, fmt.Errorf("syntax error, invalid eip number %v", eipNum)
+			}
+			eips = append(eips, eipNum)
+		}
+	}
+	return baseConfig, eips, nil
+}
+
 // Subtests returns all valid subtests of the test.
 func (t *StateTest) Subtests() []StateSubtest {
 	var sub []StateSubtest
@@ -107,28 +135,58 @@ func (t *StateTest) Subtests() []StateSubtest {
 	return sub
 }
 
-// Run executes a specific subtest.
-func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) (*state.StateDB, error) {
-	config, ok := Forks[subtest.Fork]
-	if !ok {
-		return nil, UnsupportedForkError{subtest.Fork}
+// Run executes a specific subtest and verifies the post-state and logs
+func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config, snapshotter bool) (*snapshot.Tree, *state.StateDB, error) {
+	snaps, statedb, root, err := t.RunNoVerify(subtest, vmconfig, snapshotter)
+	if err != nil {
+		return snaps, statedb, err
 	}
+	post := t.json.Post[subtest.Fork][subtest.Index]
+	// N.B: We need to do this in a two-step process, because the first Commit takes care
+	// of suicides, and we need to touch the coinbase _after_ it has potentially suicided.
+	if root != common.Hash(post.Root) {
+		return snaps, statedb, fmt.Errorf("post state root mismatch: got %x, want %x", root, post.Root)
+	}
+	if logs := rlpHash(statedb.Logs()); logs != common.Hash(post.Logs) {
+		return snaps, statedb, fmt.Errorf("post state logs hash mismatch: got %x, want %x", logs, post.Logs)
+	}
+	return snaps, statedb, nil
+}
+
+// RunNoVerify runs a specific subtest and returns the statedb and post-state root
+func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapshotter bool) (*snapshot.Tree, *state.StateDB, common.Hash, error) {
+	config, eips, err := GetChainConfig(subtest.Fork)
+	if err != nil {
+		return nil, nil, common.Hash{}, UnsupportedForkError{subtest.Fork}
+	}
+	vmconfig.ExtraEips = eips
 	block := t.genesis(config).ToBlock(nil)
-	statedb := MakePreState(fafdb.NewMemDatabase(), t.json.Pre)
+	snaps, statedb := MakePreState(rawdb.NewMemoryDatabase(), t.json.Pre, snapshotter)
 
 	post := t.json.Post[subtest.Fork][subtest.Index]
 	msg, err := t.json.Tx.toMessage(post)
 	if err != nil {
-		return nil, err
+		return nil, nil, common.Hash{}, err
 	}
-	context := core.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
-	context.Gfafash = vmTestBlockHash
-	evm := vm.NewEVM(context, statedb, config, vmconfig)
+	txContext := core.NewEVMTxContext(msg)
+	context := core.NewEVMBlockContext(block.Header(), nil, &t.json.Env.Coinbase)
+	context.GetHash = vmTestBlockHash
+	evm := vm.NewEVM(context, txContext, statedb, config, vmconfig)
 
+	if config.IsYoloV2(context.BlockNumber) {
+		statedb.AddAddressToAccessList(msg.From())
+		if dst := msg.To(); dst != nil {
+			statedb.AddAddressToAccessList(*dst)
+			// If it's a create-tx, the destination will be added inside evm.create
+		}
+		for _, addr := range evm.ActivePrecompiles() {
+			statedb.AddAddressToAccessList(addr)
+		}
+	}
 	gaspool := new(core.GasPool)
 	gaspool.AddGas(block.GasLimit())
 	snapshot := statedb.Snapshot()
-	if _, _, _, err := core.ApplyMessage(evm, msg, gaspool); err != nil {
+	if _, err := core.ApplyMessage(evm, msg, gaspool); err != nil {
 		statedb.RevertToSnapshot(snapshot)
 	}
 	// Commit block
@@ -141,24 +199,16 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) (*state.StateD
 	statedb.AddBalance(block.Coinbase(), new(big.Int))
 	// And _now_ get the state root
 	root := statedb.IntermediateRoot(config.IsEIP158(block.Number()))
-	// N.B: We need to do this in a two-step process, because the first Commit takes care
-	// of suicides, and we need to touch the coinbase _after_ it has potentially suicided.
-	if root != common.Hash(post.Root) {
-		return statedb, fmt.Errorf("post state root mismatch: got %x, want %x", root, post.Root)
-	}
-	if logs := rlpHash(statedb.Logs()); logs != common.Hash(post.Logs) {
-		return statedb, fmt.Errorf("post state logs hash mismatch: got %x, want %x", logs, post.Logs)
-	}
-	return statedb, nil
+	return snaps, statedb, root, nil
 }
 
 func (t *StateTest) gasLimit(subtest StateSubtest) uint64 {
 	return t.json.Tx.GasLimit[t.json.Post[subtest.Fork][subtest.Index].Indexes.Gas]
 }
 
-func MakePreState(db fafdb.Database, accounts core.GenesisAlloc) *state.StateDB {
+func MakePreState(db fafdb.Database, accounts core.GenesisAlloc, snapshotter bool) (*snapshot.Tree, *state.StateDB) {
 	sdb := state.NewDatabase(db)
-	statedb, _ := state.New(common.Hash{}, sdb)
+	statedb, _ := state.New(common.Hash{}, sdb, nil)
 	for addr, a := range accounts {
 		statedb.SetCode(addr, a.Code)
 		statedb.SetNonce(addr, a.Nonce)
@@ -169,8 +219,13 @@ func MakePreState(db fafdb.Database, accounts core.GenesisAlloc) *state.StateDB 
 	}
 	// Commit and re-open to start with a clean state.
 	root, _ := statedb.Commit(false)
-	statedb, _ = state.New(root, sdb)
-	return statedb
+
+	var snaps *snapshot.Tree
+	if snapshotter {
+		snaps = snapshot.New(db, sdb.TrieDB(), 1, root, false, false)
+	}
+	statedb, _ = state.New(root, sdb, snaps)
+	return snaps, statedb
 }
 
 func (t *StateTest) genesis(config *params.ChainConfig) *core.Genesis {
@@ -217,7 +272,7 @@ func (tx *stTransaction) toMessage(ps stPostState) (core.Message, error) {
 	dataHex := tx.Data[ps.Indexes.Data]
 	valueHex := tx.Value[ps.Indexes.Value]
 	gasLimit := tx.GasLimit[ps.Indexes.Gas]
-	// Value, Data hex encoding is messy: https://github.com/fafereum/tests/issues/203
+	// Value, Data hex encoding is messy: https://github.com/ethereum/tests/issues/203
 	value := new(big.Int)
 	if valueHex != "0x" {
 		v, ok := math.ParseBig256(valueHex)

@@ -1,30 +1,39 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package state
 
 import (
+	"errors"
 	"fmt"
-	"sync"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/trie"
+	"github.com/VictoriaMetrics/fastcache"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
 )
 
-// Trie cache generation limit after which to evict trie nodes from memory.
-var MaxTrieCacheGen = uint16(120)
-
 const (
-	// Number of past tries to keep. This value is chosen such that
-	// reasonable chain reorg depths will hit an existing trie.
-	maxPastTries = 12
-
 	// Number of codehash->size associations to keep.
 	codeSizeCacheSize = 100000
+
+	// Cache size granted for caching clean code.
+	codeCacheSize = 64 * 1024 * 1024
 )
 
 // Database wraps access to tries and contract code.
@@ -48,82 +57,89 @@ type Database interface {
 	TrieDB() *trie.Database
 }
 
-// Trie is a fafereum Merkle Trie.
+// Trie is a Ethereum Merkle Patricia trie.
 type Trie interface {
+	// GetKey returns the sha3 preimage of a hashed key that was previously used
+	// to store a value.
+	//
+	// TODO(fjl): remove this when SecureTrie is removed
+	GetKey([]byte) []byte
+
+	// TryGet returns the value for key stored in the trie. The value bytes must
+	// not be modified by the caller. If a node was not found in the database, a
+	// trie.MissingNodeError is returned.
 	TryGet(key []byte) ([]byte, error)
+
+	// TryUpdate associates key with value in the trie. If value has length zero, any
+	// existing value is deleted from the trie. The value bytes must not be modified
+	// by the caller while they are stored in the trie. If a node was not found in the
+	// database, a trie.MissingNodeError is returned.
 	TryUpdate(key, value []byte) error
+
+	// TryDelete removes any existing value for key from the trie. If a node was not
+	// found in the database, a trie.MissingNodeError is returned.
 	TryDelete(key []byte) error
-	Commit(onleaf trie.LeafCallback) (common.Hash, error)
+
+	// Hash returns the root hash of the trie. It does not write to the database and
+	// can be used even if the trie doesn't have one.
 	Hash() common.Hash
+
+	// Commit writes all nodes to the trie's memory database, tracking the internal
+	// and external (for account tries) references.
+	Commit(onleaf trie.LeafCallback) (common.Hash, error)
+
+	// NodeIterator returns an iterator that returns nodes of the trie. Iteration
+	// starts at the key after the given start key.
 	NodeIterator(startKey []byte) trie.NodeIterator
-	GetKey([]byte) []byte // TODO(fjl): remove this when SecureTrie is removed
-	Prove(key []byte, fromLevel uint, proofDb fafdb.Putter) error
+
+	// Prove constructs a Merkle proof for key. The result contains all encoded nodes
+	// on the path to the value at key. The value itself is also included in the last
+	// node and can be retrieved by verifying the proof.
+	//
+	// If the trie does not contain a value for key, the returned proof contains all
+	// nodes of the longest existing prefix of the key (at least the root), ending
+	// with the node that proves the absence of the key.
+	Prove(key []byte, fromLevel uint, proofDb fafdb.KeyValueWriter) error
 }
 
 // NewDatabase creates a backing store for state. The returned database is safe for
-// concurrent use and retains a few recent expanded trie nodes in memory. To keep
-// more historical state in memory, use the NewDatabaseWithCache constructor.
+// concurrent use, but does not retain any recent trie nodes in memory. To keep some
+// historical state in memory, use the NewDatabaseWithConfig constructor.
 func NewDatabase(db fafdb.Database) Database {
-	return NewDatabaseWithCache(db, 0)
+	return NewDatabaseWithConfig(db, nil)
 }
 
-// NewDatabase creates a backing store for state. The returned database is safe for
-// concurrent use and retains both a few recent expanded trie nodes in memory, as
-// well as a lot of collapsed RLP trie nodes in a large memory cache.
-func NewDatabaseWithCache(db fafdb.Database, cache int) Database {
+// NewDatabaseWithConfig creates a backing store for state. The returned database
+// is safe for concurrent use and retains a lot of collapsed RLP trie nodes in a
+// large memory cache.
+func NewDatabaseWithConfig(db fafdb.Database, config *trie.Config) Database {
 	csc, _ := lru.New(codeSizeCacheSize)
 	return &cachingDB{
-		db:            trie.NewDatabaseWithCache(db, cache),
+		db:            trie.NewDatabaseWithConfig(db, config),
 		codeSizeCache: csc,
+		codeCache:     fastcache.New(codeCacheSize),
 	}
 }
 
 type cachingDB struct {
 	db            *trie.Database
-	mu            sync.Mutex
-	pastTries     []*trie.SecureTrie
 	codeSizeCache *lru.Cache
+	codeCache     *fastcache.Cache
 }
 
-// OpenTrie opens the main account trie.
+// OpenTrie opens the main account trie at a specific root hash.
 func (db *cachingDB) OpenTrie(root common.Hash) (Trie, error) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	for i := len(db.pastTries) - 1; i >= 0; i-- {
-		if db.pastTries[i].Hash() == root {
-			return cachedTrie{db.pastTries[i].Copy(), db}, nil
-		}
-	}
-	tr, err := trie.NewSecure(root, db.db, MaxTrieCacheGen)
-	if err != nil {
-		return nil, err
-	}
-	return cachedTrie{tr, db}, nil
-}
-
-func (db *cachingDB) pushTrie(t *trie.SecureTrie) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	if len(db.pastTries) >= maxPastTries {
-		copy(db.pastTries, db.pastTries[1:])
-		db.pastTries[len(db.pastTries)-1] = t
-	} else {
-		db.pastTries = append(db.pastTries, t)
-	}
+	return trie.NewSecure(root, db.db)
 }
 
 // OpenStorageTrie opens the storage trie of an account.
 func (db *cachingDB) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	return trie.NewSecure(root, db.db, 0)
+	return trie.NewSecure(root, db.db)
 }
 
 // CopyTrie returns an independent copy of the given trie.
 func (db *cachingDB) CopyTrie(t Trie) Trie {
 	switch t := t.(type) {
-	case cachedTrie:
-		return cachedTrie{t.SecureTrie.Copy(), db}
 	case *trie.SecureTrie:
 		return t.Copy()
 	default:
@@ -133,11 +149,32 @@ func (db *cachingDB) CopyTrie(t Trie) Trie {
 
 // ContractCode retrieves a particular contract's code.
 func (db *cachingDB) ContractCode(addrHash, codeHash common.Hash) ([]byte, error) {
-	code, err := db.db.Node(codeHash)
-	if err == nil {
-		db.codeSizeCache.Add(codeHash, len(code))
+	if code := db.codeCache.Get(nil, codeHash.Bytes()); len(code) > 0 {
+		return code, nil
 	}
-	return code, err
+	code := rawdb.ReadCode(db.db.DiskDB(), codeHash)
+	if len(code) > 0 {
+		db.codeCache.Set(codeHash.Bytes(), code)
+		db.codeSizeCache.Add(codeHash, len(code))
+		return code, nil
+	}
+	return nil, errors.New("not found")
+}
+
+// ContractCodeWithPrefix retrieves a particular contract's code. If the
+// code can't be found in the cache, then check the existence with **new**
+// db scheme.
+func (db *cachingDB) ContractCodeWithPrefix(addrHash, codeHash common.Hash) ([]byte, error) {
+	if code := db.codeCache.Get(nil, codeHash.Bytes()); len(code) > 0 {
+		return code, nil
+	}
+	code := rawdb.ReadCodeWithPrefix(db.db.DiskDB(), codeHash)
+	if len(code) > 0 {
+		db.codeCache.Set(codeHash.Bytes(), code)
+		db.codeSizeCache.Add(codeHash, len(code))
+		return code, nil
+	}
+	return nil, errors.New("not found")
 }
 
 // ContractCodeSize retrieves a particular contracts code's size.
@@ -152,22 +189,4 @@ func (db *cachingDB) ContractCodeSize(addrHash, codeHash common.Hash) (int, erro
 // TrieDB retrieves any intermediate trie-node caching layer.
 func (db *cachingDB) TrieDB() *trie.Database {
 	return db.db
-}
-
-// cachedTrie inserts its trie into a cachingDB on commit.
-type cachedTrie struct {
-	*trie.SecureTrie
-	db *cachingDB
-}
-
-func (m cachedTrie) Commit(onleaf trie.LeafCallback) (common.Hash, error) {
-	root, err := m.SecureTrie.Commit(onleaf)
-	if err == nil {
-		m.db.pushTrie(m.SecureTrie)
-	}
-	return root, err
-}
-
-func (m cachedTrie) Prove(key []byte, fromLevel uint, proofDb fafdb.Putter) error {
-	return m.SecureTrie.Prove(key, fromLevel, proofDb)
 }

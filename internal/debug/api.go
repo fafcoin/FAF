@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Package debug interfaces Go runtime debugging facilities.
 // This package is mostly glue code making these facilities available
@@ -22,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // Handler is the global debugging handler.
@@ -184,7 +182,7 @@ func (*HandlerT) Stacks() string {
 	return buf.String()
 }
 
-// FreeOSMemory returns unused memory to the OS.
+// FreeOSMemory forces a garbage collection.
 func (*HandlerT) FreeOSMemory() {
 	debug.FreeOSMemory()
 }

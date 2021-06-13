@@ -1,14 +1,25 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
 import (
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // deployDashboard queries the user for various input on deploying a web-service
@@ -32,7 +43,7 @@ func (w *wizard) deployDashboard() {
 	existed := err == nil
 
 	// Figure out which port to listen on
-	//fmt.Println()
+	fmt.Println()
 	fmt.Printf("Which port should the dashboard listen on? (default = %d)\n", infos.port)
 	infos.port = w.readDefaultInt(infos.port)
 
@@ -49,7 +60,7 @@ func (w *wizard) deployDashboard() {
 			available[service] = append(available[service], server)
 		}
 	}
-	for _, service := range []string{"fafstats", "explorer", "wallet", "faucet"} {
+	for _, service := range []string{"ethstats", "explorer", "wallet", "faucet"} {
 		// Gather all the locally hosted pages of this type
 		var pages []string
 		for _, server := range available[service] {
@@ -60,13 +71,13 @@ func (w *wizard) deployDashboard() {
 			// If there's a service running on the machine, retrieve it's port number
 			var port int
 			switch service {
-			case "fafstats":
-				if infos, err := checkfafstats(client, w.network); err == nil {
+			case "ethstats":
+				if infos, err := checkEthstats(client, w.network); err == nil {
 					port = infos.port
 				}
 			case "explorer":
 				if infos, err := checkExplorer(client, w.network); err == nil {
-					port = infos.webPort
+					port = infos.port
 				}
 			case "wallet":
 				if infos, err := checkWallet(client, w.network); err == nil {
@@ -86,7 +97,7 @@ func (w *wizard) deployDashboard() {
 		if len(pages) > 0 {
 			defLabel, defChoice = pages[0], 1
 		}
-		//fmt.Println()
+		fmt.Println()
 		fmt.Printf("Which %s service to list? (default = %s)\n", service, defLabel)
 		for i, page := range pages {
 			fmt.Printf(" %d. %s\n", i+1, page)
@@ -104,7 +115,7 @@ func (w *wizard) deployDashboard() {
 		case choice <= len(pages):
 			page = pages[choice-1]
 		case choice == len(pages)+1:
-			//fmt.Println()
+			fmt.Println()
 			fmt.Printf("Which address is the external %s service at?\n", service)
 			page = w.readString()
 		default:
@@ -112,8 +123,8 @@ func (w *wizard) deployDashboard() {
 		}
 		// Save the users choice
 		switch service {
-		case "fafstats":
-			infos.fafstats = page
+		case "ethstats":
+			infos.ethstats = page
 		case "explorer":
 			infos.explorer = page
 		case "wallet":
@@ -122,16 +133,16 @@ func (w *wizard) deployDashboard() {
 			infos.faucet = page
 		}
 	}
-	// If we have fafstats running, ask whfafer to make the secret public or not
-	if w.conf.fafstats != "" {
-		//fmt.Println()
-		//fmt.Println("Include fafstats secret on dashboard (y/n)? (default = yes)")
+	// If we have ethstats running, ask whether to make the secret public or not
+	if w.conf.ethstats != "" {
+		fmt.Println()
+		fmt.Println("Include ethstats secret on dashboard (y/n)? (default = yes)")
 		infos.trusted = w.readDefaultYesNo(true)
 	}
 	// Try to deploy the dashboard container on the host
 	nocache := false
 	if existed {
-		//fmt.Println()
+		fmt.Println()
 		fmt.Printf("Should the dashboard be built from scratch (y/n)? (default = no)\n")
 		nocache = w.readDefaultYesNo(false)
 	}

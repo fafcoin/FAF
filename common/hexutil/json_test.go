@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package hexutil
 
@@ -76,7 +74,7 @@ func TestUnmarshalBytes(t *testing.T) {
 		if !checkError(t, test.input, err, test.wantErr) {
 			continue
 		}
-		if !bytes.Equal(test.want.([]byte), []byte(v)) {
+		if !bytes.Equal(test.want.([]byte), v) {
 			t.Errorf("input %s: value mismatch: got %x, want %x", test.input, &v, test.want)
 			continue
 		}

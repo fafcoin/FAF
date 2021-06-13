@@ -1,7 +1,7 @@
 # devp2p Simulations
 
 The `p2p/simulations` package implements a simulation framework which supports
-creating a collection of devp2p nodes, connecting them togfafer to form a
+creating a collection of devp2p nodes, connecting them together to form a
 simulation network, performing simulation actions in that network and then
 extracting useful information.
 
@@ -66,7 +66,7 @@ localhost ports.
 ## Network
 
 A simulation network is created with an ID and default service (which is used
-if a node is created without an explicit service), exposes mfafods for
+if a node is created without an explicit service), exposes methods for
 creating, starting, stopping, connecting and disconnecting nodes, and emits
 events when certain actions occur.
 
@@ -80,10 +80,10 @@ A simulation network emits the following events:
 
 The events have a "control" flag which when set indicates that the event is the
 outcome of a controlled simulation action (e.g. creating a node or explicitly
-connecting two nodes togfafer).
+connecting two nodes together).
 
 This is in contrast to a non-control event, otherwise called a "live" event,
-which is the outcome of somfafing happening in the network as a result of a
+which is the outcome of something happening in the network as a result of a
 control event (e.g. a node actually started up or a connection was actually
 established between two nodes).
 
@@ -95,22 +95,22 @@ events via RPC when the nodes start up.
 The `Simulation` type can be used in tests to perform actions in a simulation
 network and then wait for expectations to be met.
 
-With a running simulation network, the `Simulation.Run` mfafod can be called
+With a running simulation network, the `Simulation.Run` method can be called
 with a `Step` which has the following fields:
 
 * `Action` - a function which performs some action in the network
 
-* `Expect` - an expectation function which returns whfafer or not a
+* `Expect` - an expectation function which returns whether or not a
     given node meets the expectation
 
 * `Trigger` - a channel which receives node IDs which then trigger a check
     of the expectation function to be performed against that node
 
-As a concrete example, consider a simulated network of fafereum nodes. An
+As a concrete example, consider a simulated network of Ethereum nodes. An
 `Action` could be the sending of a transaction, `Expect` it being included in
 a block, and `Trigger` a check for every block that is mined.
 
-On return, the `Simulation.Run` mfafod returns a `StepResult` which can be used
+On return, the `Simulation.Run` method returns a `StepResult` which can be used
 to determine if all nodes met the expectation, how long it took them to meet
 the expectation and what network events were emitted during the step run.
 
@@ -161,7 +161,7 @@ p2psim node start <node>
 p2psim node stop <node>
 p2psim node connect <node> <peer>
 p2psim node disconnect <node> <peer>
-p2psim node rpc <node> <mfafod> [<args>] [--subscribe]
+p2psim node rpc <node> <method> [<args>] [--subscribe]
 ```
 
 ## Example

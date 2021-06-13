@@ -1,7 +1,6 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2013 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 // Adapted from: https://golang.org/src/crypto/cipher/xor.go
 
@@ -148,7 +147,7 @@ func safeORBytes(dst, a, b []byte) int {
 	return n
 }
 
-// TestBytes tests whfafer any bit is set in the input byte slice.
+// TestBytes tests whether any bit is set in the input byte slice.
 func TestBytes(p []byte) bool {
 	if supportsUnaligned {
 		return fastTestBytes(p)

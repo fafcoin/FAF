@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2018 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -13,7 +24,7 @@ import (
 )
 
 func TestMessageSignVerify(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "fafkey-test")
+	tmpdir, err := ioutil.TempDir("", "ethkey-test")
 	if err != nil {
 		t.Fatal("Can't create temporary directory:", err)
 	}
@@ -23,28 +34,28 @@ func TestMessageSignVerify(t *testing.T) {
 	message := "test message"
 
 	// Create the key.
-	generate := runfafkey(t, "generate", keyfile)
+	generate := runEthkey(t, "generate", "--lightkdf", keyfile)
 	generate.Expect(`
 !! Unsupported terminal, password will be echoed.
-Passphrase: {{.InputLine "foobar"}}
-Repeat passphrase: {{.InputLine "foobar"}}
+Password: {{.InputLine "foobar"}}
+Repeat password: {{.InputLine "foobar"}}
 `)
 	_, matches := generate.ExpectRegexp(`Address: (0x[0-9a-fA-F]{40})\n`)
 	address := matches[1]
 	generate.ExpectExit()
 
 	// Sign a message.
-	sign := runfafkey(t, "signmessage", keyfile, message)
+	sign := runEthkey(t, "signmessage", keyfile, message)
 	sign.Expect(`
 !! Unsupported terminal, password will be echoed.
-Passphrase: {{.InputLine "foobar"}}
+Password: {{.InputLine "foobar"}}
 `)
 	_, matches = sign.ExpectRegexp(`Signature: ([0-9a-f]+)\n`)
 	signature := matches[1]
 	sign.ExpectExit()
 
 	// Verify the message.
-	verify := runfafkey(t, "verifymessage", address, signature, message)
+	verify := runEthkey(t, "verifymessage", address, signature, message)
 	_, matches = verify.ExpectRegexp(`
 Signature verification successful!
 Recovered public key: [0-9a-f]+

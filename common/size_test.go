@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package common
@@ -14,8 +11,8 @@ func TestStorageSizeString(t *testing.T) {
 		size StorageSize
 		str  string
 	}{
-		{2381273, "2.38 mB"},
-		{2192, "2.19 kB"},
+		{2381273, "2.27 MiB"},
+		{2192, "2.14 KiB"},
 		{12, "12.00 B"},
 	}
 

@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains the NTP time drift detection via the SNTP protocol:
 //   https://tools.ietf.org/html/rfc4330
@@ -13,7 +11,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -21,7 +19,7 @@ const (
 	ntpChecks = 3              // Number of measurements to do against the NTP server
 )
 
-// durationSlice attaches the mfafods of sort.Interface to []time.Duration,
+// durationSlice attaches the methods of sort.Interface to []time.Duration,
 // sorting in increasing order.
 type durationSlice []time.Duration
 
@@ -45,7 +43,7 @@ func checkClockDrift() {
 }
 
 // sntpDrift does a naive time resolution against an NTP server and returns the
-// measured drift. This mfafod uses the simple version of NTP. It's not precise
+// measured drift. This method uses the simple version of NTP. It's not precise
 // but should be fine for these purposes.
 //
 // Note, it executes two extra measurements compared to the number of requested

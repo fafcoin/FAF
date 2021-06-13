@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2016 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -9,32 +20,31 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/fafereum/go-fafereum/accounts"
-	"github.com/fafereum/go-fafereum/accounts/keystore"
-	"github.com/fafereum/go-fafereum/cmd/utils"
-	"github.com/fafereum/go-fafereum/console"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"gopkg.in/urfave/cli.v1"
 )
 
 var (
 	walletCommand = cli.Command{
 		Name:      "wallet",
-		Usage:     "Manage fafereum presale wallets",
+		Usage:     "Manage Ethereum presale wallets",
 		ArgsUsage: "",
 		Category:  "ACCOUNT COMMANDS",
 		Description: `
-    gfaf wallet import /path/to/my/presale.wallet
+    geth wallet import /path/to/my/presale.wallet
 
-will prompt for your password and imports your fafer presale account.
+will prompt for your password and imports your ether presale account.
 It can be used non-interactively with the --password option taking a
 passwordfile as argument containing the wallet password in plaintext.`,
 		Subcommands: []cli.Command{
 			{
 
 				Name:      "import",
-				Usage:     "Import fafereum presale wallet",
+				Usage:     "Import Ethereum presale wallet",
 				ArgsUsage: "<keyFile>",
 				Action:    utils.MigrateFlags(importWallet),
 				Category:  "ACCOUNT COMMANDS",
@@ -45,9 +55,9 @@ passwordfile as argument containing the wallet password in plaintext.`,
 					utils.LightKDFFlag,
 				},
 				Description: `
-	gfaf wallet [options] /path/to/my/presale.wallet
+	geth wallet [options] /path/to/my/presale.wallet
 
-will prompt for your password and imports your fafer presale account.
+will prompt for your password and imports your ether presale account.
 It can be used non-interactively with the --password option taking a
 passwordfile as argument containing the wallet password in plaintext.`,
 			},
@@ -75,7 +85,7 @@ Note that exporting your key in unencrypted format is NOT supported.
 
 Keys are stored under <DATADIR>/keystore.
 It is safe to transfer the entire directory or the individual keys therein
-between fafereum nodes by simply copying.
+between ethereum nodes by simply copying.
 
 Make sure you backup your keys regularly.`,
 		Subcommands: []cli.Command{
@@ -101,15 +111,15 @@ Print a short summary of all accounts`,
 					utils.LightKDFFlag,
 				},
 				Description: `
-    gfaf account new
+    geth account new
 
 Creates a new account and prints the address.
 
-The account is saved in encrypted format, you are prompted for a passphrase.
+The account is saved in encrypted format, you are prompted for a password.
 
-You must remember this passphrase to unlock your account in the future.
+You must remember this password to unlock your account in the future.
 
-For non-interactive use the passphrase can be specified with the --password flag:
+For non-interactive use the password can be specified with the --password flag:
 
 Note, this is meant to be used for testing only, it is a bad idea to save your
 password to file or expose in any other way.
@@ -126,19 +136,19 @@ password to file or expose in any other way.
 					utils.LightKDFFlag,
 				},
 				Description: `
-    gfaf account update <address>
+    geth account update <address>
 
 Update an existing account.
 
 The account is saved in the newest version in encrypted format, you are prompted
-for a passphrase to unlock the account and another to save the updated file.
+for a password to unlock the account and another to save the updated file.
 
 This same command can therefore be used to migrate an account of a deprecated
 format to the newest format or change the password for an account.
 
-For non-interactive use the passphrase can be specified with the --password flag:
+For non-interactive use the password can be specified with the --password flag:
 
-    gfaf account update [options] <address>
+    geth account update [options] <address>
 
 Since only one password can be given, only format update can be performed,
 changing your password is only possible interactively.
@@ -156,23 +166,23 @@ changing your password is only possible interactively.
 				},
 				ArgsUsage: "<keyFile>",
 				Description: `
-    gfaf account import <keyfile>
+    geth account import <keyfile>
 
 Imports an unencrypted private key from <keyfile> and creates a new account.
 Prints the address.
 
 The keyfile is assumed to contain an unencrypted private key in hexadecimal format.
 
-The account is saved in encrypted format, you are prompted for a passphrase.
+The account is saved in encrypted format, you are prompted for a password.
 
-You must remember this passphrase to unlock your account in the future.
+You must remember this password to unlock your account in the future.
 
-For non-interactive use the passphrase can be specified with the -password flag:
+For non-interactive use the password can be specified with the -password flag:
 
-    gfaf account import [options] <keyfile>
+    geth account import [options] <keyfile>
 
 Note:
-As you can directly copy your encrypted accounts to another fafereum instance,
+As you can directly copy your encrypted accounts to another ethereum instance,
 this import mechanism is not needed when you transfer an account between
 nodes.
 `,
@@ -194,14 +204,14 @@ func accountList(ctx *cli.Context) error {
 }
 
 // tries unlocking the specified account a few times.
-func unlockAccount(ctx *cli.Context, ks *keystore.KeyStore, address string, i int, passwords []string) (accounts.Account, string) {
+func unlockAccount(ks *keystore.KeyStore, address string, i int, passwords []string) (accounts.Account, string) {
 	account, err := utils.MakeAddress(ks, address)
 	if err != nil {
 		utils.Fatalf("Could not list accounts: %v", err)
 	}
 	for trials := 0; trials < 3; trials++ {
 		prompt := fmt.Sprintf("Unlocking account %s | Attempt %d/%d", address, trials+1, 3)
-		password := getPassPhrase(prompt, false, i, passwords)
+		password := utils.GetPassPhraseWithList(prompt, false, i, passwords)
 		err = ks.Unlock(account, password)
 		if err == nil {
 			log.Info("Unlocked account", "address", account.Address.Hex())
@@ -222,42 +232,12 @@ func unlockAccount(ctx *cli.Context, ks *keystore.KeyStore, address string, i in
 	return accounts.Account{}, ""
 }
 
-// getPassPhrase retrieves the password associated with an account, either fetched
-// from a list of preloaded passphrases, or requested interactively from the user.
-func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) string {
-	// If a list of passwords was supplied, retrieve from them
-	if len(passwords) > 0 {
-		if i < len(passwords) {
-			return passwords[i]
-		}
-		return passwords[len(passwords)-1]
-	}
-	// Otherwise prompt the user for the password
-	if prompt != "" {
-		//fmt.Println(prompt)
-	}
-	password, err := console.Stdin.PromptPassword("Passphrase: ")
-	if err != nil {
-		utils.Fatalf("Failed to read passphrase: %v", err)
-	}
-	if confirmation {
-		confirm, err := console.Stdin.PromptPassword("Repeat passphrase: ")
-		if err != nil {
-			utils.Fatalf("Failed to read passphrase confirmation: %v", err)
-		}
-		if password != confirm {
-			utils.Fatalf("Passphrases do not match")
-		}
-	}
-	return password
-}
-
 func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrError, auth string) accounts.Account {
 	fmt.Printf("Multiple key files exist for address %x:\n", err.Addr)
 	for _, a := range err.Matches {
 		fmt.Println("  ", a.URL)
 	}
-	//fmt.Println("Testing your passphrase against all of them...")
+	fmt.Println("Testing your password against all of them...")
 	var match *accounts.Account
 	for _, a := range err.Matches {
 		if err := ks.Unlock(a, auth); err == nil {
@@ -268,11 +248,11 @@ func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrErr
 	if match == nil {
 		utils.Fatalf("None of the listed files could be unlocked.")
 	}
-	fmt.Printf("Your passphrase unlocked %s\n", match.URL)
-	//fmt.Println("In order to avoid this warning, you need to remove the following duplicate key files:")
+	fmt.Printf("Your password unlocked %s\n", match.URL)
+	fmt.Println("In order to avoid this warning, you need to remove the following duplicate key files:")
 	for _, a := range err.Matches {
 		if a != *match {
-			//fmt.Println("  ", a.URL)
+			fmt.Println("  ", a.URL)
 		}
 	}
 	return *match
@@ -280,7 +260,7 @@ func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrErr
 
 // accountCreate creates a new account into the keystore defined by the CLI flags.
 func accountCreate(ctx *cli.Context) error {
-	cfg := gfafConfig{Node: defaultNodeConfig()}
+	cfg := gethConfig{Node: defaultNodeConfig()}
 	// Load config file.
 	if file := ctx.GlobalString(configFileFlag.Name); file != "" {
 		if err := loadConfig(file, &cfg); err != nil {
@@ -294,14 +274,20 @@ func accountCreate(ctx *cli.Context) error {
 		utils.Fatalf("Failed to read configuration: %v", err)
 	}
 
-	password := getPassPhrase("Your new account is locked with a password. Please give a password. Do not forget this password.", true, 0, utils.MakePasswordList(ctx))
+	password := utils.GetPassPhraseWithList("Your new account is locked with a password. Please give a password. Do not forget this password.", true, 0, utils.MakePasswordList(ctx))
 
-	address, err := keystore.StoreKey(keydir, password, scryptN, scryptP)
+	account, err := keystore.StoreKey(keydir, password, scryptN, scryptP)
 
 	if err != nil {
 		utils.Fatalf("Failed to create account: %v", err)
 	}
-	fmt.Printf("Address: {%x}\n", address)
+	fmt.Printf("\nYour new key was generated\n\n")
+	fmt.Printf("Public address of the key:   %s\n", account.Address.Hex())
+	fmt.Printf("Path of the secret key file: %s\n\n", account.URL.Path)
+	fmt.Printf("- You can share your public address with anyone. Others need it to interact with you.\n")
+	fmt.Printf("- You must NEVER share the secret key with anyone! The key controls access to your funds!\n")
+	fmt.Printf("- You must BACKUP your key file! Without the key, it's impossible to access account funds!\n")
+	fmt.Printf("- You must REMEMBER your password! Without the password, it's impossible to decrypt the key!\n\n")
 	return nil
 }
 
@@ -315,8 +301,8 @@ func accountUpdate(ctx *cli.Context) error {
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
 	for _, addr := range ctx.Args() {
-		account, oldPassword := unlockAccount(ctx, ks, addr, 0, nil)
-		newPassword := getPassPhrase("Please give a new password. Do not forget this password.", true, 0, nil)
+		account, oldPassword := unlockAccount(ks, addr, 0, nil)
+		newPassword := utils.GetPassPhraseWithList("Please give a new password. Do not forget this password.", true, 0, nil)
 		if err := ks.Update(account, oldPassword, newPassword); err != nil {
 			utils.Fatalf("Could not update the account: %v", err)
 		}
@@ -335,7 +321,7 @@ func importWallet(ctx *cli.Context) error {
 	}
 
 	stack, _ := makeConfigNode(ctx)
-	passphrase := getPassPhrase("", false, 0, utils.MakePasswordList(ctx))
+	passphrase := utils.GetPassPhraseWithList("", false, 0, utils.MakePasswordList(ctx))
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	acct, err := ks.ImportPreSaleKey(keyJSON, passphrase)
@@ -356,7 +342,7 @@ func accountImport(ctx *cli.Context) error {
 		utils.Fatalf("Failed to load the private key: %v", err)
 	}
 	stack, _ := makeConfigNode(ctx)
-	passphrase := getPassPhrase("Your new account is locked with a password. Please give a password. Do not forget this password.", true, 0, utils.MakePasswordList(ctx))
+	passphrase := utils.GetPassPhraseWithList("Your new account is locked with a password. Please give a password. Do not forget this password.", true, 0, utils.MakePasswordList(ctx))
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	acct, err := ks.ImportECDSA(key, passphrase)

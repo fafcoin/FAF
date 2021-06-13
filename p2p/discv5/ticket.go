@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package discv5
 
@@ -10,19 +8,16 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/common/mclock"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
 	ticketTimeBucketLen = time.Minute
-	timeWindow          = 10 // * ticketTimeBucketLen
-	wantTicketsInWindow = 10
 	collectFrequency    = time.Second * 30
 	registerFrequency   = time.Second * 60
 	maxCollectDebt      = 10
@@ -127,7 +122,6 @@ type ticketStore struct {
 
 	lastBucketFetched timeBucket
 	nextTicketCached  *ticketRef
-	nextTicketReg     mclock.AbsTime
 
 	searchTopicMap        map[Topic]searchTopic
 	nextTopicQueryCleanup mclock.AbsTime
@@ -254,57 +248,6 @@ func (s *ticketStore) nextSearchLookup(topic Topic) lookupInfo {
 		tr.radiusLookupCnt = 0
 	}
 	return target
-}
-
-// ticketsInWindow returns the tickets of a given topic in the registration window.
-func (s *ticketStore) ticketsInWindow(topic Topic) []ticketRef {
-	// Sanity check that the topic still exists before operating on it
-	if s.tickets[topic] == nil {
-		log.Warn("Listing non-existing discovery tickets", "topic", topic)
-		return nil
-	}
-	// Gather all the tickers in the next time window
-	var tickets []ticketRef
-
-	buckets := s.tickets[topic].buckets
-	for idx := timeBucket(0); idx < timeWindow; idx++ {
-		tickets = append(tickets, buckets[s.lastBucketFetched+idx]...)
-	}
-	log.Trace("Retrieved discovery registration tickets", "topic", topic, "from", s.lastBucketFetched, "tickets", len(tickets))
-	return tickets
-}
-
-func (s *ticketStore) removeExcessTickets(t Topic) {
-	tickets := s.ticketsInWindow(t)
-	if len(tickets) <= wantTicketsInWindow {
-		return
-	}
-	sort.Sort(ticketRefByWaitTime(tickets))
-	for _, r := range tickets[wantTicketsInWindow:] {
-		s.removeTicketRef(r)
-	}
-}
-
-type ticketRefByWaitTime []ticketRef
-
-// Len is the number of elements in the collection.
-func (s ticketRefByWaitTime) Len() int {
-	return len(s)
-}
-
-func (ref ticketRef) waitTime() mclock.AbsTime {
-	return ref.t.regTime[ref.idx] - ref.t.issueTime
-}
-
-// Less reports whfafer the element with
-// index i should sort before the element with index j.
-func (s ticketRefByWaitTime) Less(i, j int) bool {
-	return s[i].waitTime() < s[j].waitTime()
-}
-
-// Swap swaps the elements with indexes i and j.
-func (s ticketRefByWaitTime) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
 }
 
 func (s *ticketStore) addTicketRef(r ticketRef) {
@@ -502,10 +445,10 @@ func (s *ticketStore) searchLookupDone(lookup lookupInfo, nodes []*Node, query f
 	}
 }
 
-func (s *ticketStore) adjustWithTicket(now mclock.AbsTime, targfafash common.Hash, t *ticket) {
+func (s *ticketStore) adjustWithTicket(now mclock.AbsTime, targetHash common.Hash, t *ticket) {
 	for i, topic := range t.topics {
 		if tt, ok := s.radius[topic]; ok {
-			tt.adjustWithTicket(now, targfafash, ticketRef{t, i})
+			tt.adjustWithTicket(now, targetHash, ticketRef{t, i})
 		}
 	}
 }
@@ -542,7 +485,7 @@ func (s *ticketStore) addTicket(localTime mclock.AbsTime, pingHash []byte, ticke
 		}
 		if float64(wait) < float64(keepTicketConst)+float64(keepTicketExp)*rnd {
 			// use the ticket to register this topic
-			////fmt.Println("addTicket", ticket.node.ID[:8], ticket.node.addr().String(), ticket.serial, ticket.pong)
+			//fmt.Println("addTicket", ticket.node.ID[:8], ticket.node.addr().String(), ticket.serial, ticket.pong)
 			s.addTicketRef(ticketRef{ticket, topicIdx})
 		}
 	}
@@ -551,15 +494,6 @@ func (s *ticketStore) addTicket(localTime mclock.AbsTime, pingHash []byte, ticke
 		s.nextTicketCached = nil
 		s.nodes[ticket.node] = ticket
 	}
-}
-
-func (s *ticketStore) getNodeTicket(node *Node) *ticket {
-	if s.nodes[node] == nil {
-		log.Trace("Retrieving node ticket", "node", node.ID, "serial", nil)
-	} else {
-		log.Trace("Retrieving node ticket", "node", node.ID, "serial", s.nodes[node].serial)
-	}
-	return s.nodes[node]
 }
 
 func (s *ticketStore) canQueryTopic(node *Node, topic Topic) bool {
@@ -606,7 +540,7 @@ func (s *ticketStore) cleanupTopicQueries(now mclock.AbsTime) {
 
 func (s *ticketStore) gotTopicNodes(from *Node, hash common.Hash, nodes []rpcNode) (timeout bool) {
 	now := mclock.Now()
-	////fmt.Println("got", from.addr().String(), hash, len(nodes))
+	//fmt.Println("got", from.addr().String(), hash, len(nodes))
 	qq := s.queriesSent[from]
 	if qq == nil {
 		return true
@@ -622,7 +556,7 @@ func (s *ticketStore) gotTopicNodes(from *Node, hash common.Hash, nodes []rpcNod
 	s.radius[q.lookup.topic].adjust(now, q.lookup.target, from.sha, inside)
 	chn := s.searchTopicMap[q.lookup.topic].foundChn
 	if chn == nil {
-		////fmt.Println("no channel")
+		//fmt.Println("no channel")
 		return false
 	}
 	for _, node := range nodes {
@@ -758,12 +692,6 @@ func globalRandRead(b []byte) {
 	}
 }
 
-func (r *topicRadius) isInRadius(addrHash common.Hash) bool {
-	nodePrefix := binary.BigEndian.Uint64(addrHash[0:8])
-	dist := nodePrefix ^ r.topicHashPrefix
-	return dist < r.radius
-}
-
 func (r *topicRadius) chooseLookupBucket(a, b int) int {
 	if a < 0 {
 		a = 0
@@ -824,7 +752,7 @@ func (r *topicRadius) recalcRadius() (radius uint64, radiusLookup int) {
 		r.buckets[i].value = v
 		//fmt.Printf("%v %v | ", v, r.buckets[i].weights[trNoAdjust])
 	}
-	////fmt.Println()
+	//fmt.Println()
 	slopeCross := -1
 	for i, b := range r.buckets {
 		v := b.value
@@ -872,7 +800,7 @@ func (r *topicRadius) recalcRadius() (radius uint64, radiusLookup int) {
 		}
 	}
 
-	////fmt.Println("mb", maxBucket, "sc", slopeCross, "mrb", minRadBucket, "ll", lookupLeft, "lr", lookupRight, "mv", maxValue)
+	//fmt.Println("mb", maxBucket, "sc", slopeCross, "mrb", minRadBucket, "ll", lookupLeft, "lr", lookupRight, "mv", maxValue)
 
 	if radiusLookup == -1 {
 		// no more radius lookups needed at the moment, return a radius
@@ -919,7 +847,7 @@ func (r *topicRadius) nextTarget(forceRegular bool) lookupInfo {
 	return lookupInfo{target: target, topic: r.topic, radiusLookup: false}
 }
 
-func (r *topicRadius) adjustWithTicket(now mclock.AbsTime, targfafash common.Hash, t ticketRef) {
+func (r *topicRadius) adjustWithTicket(now mclock.AbsTime, targetHash common.Hash, t ticketRef) {
 	wait := t.t.regTime[t.idx] - t.t.issueTime
 	inside := float64(wait)/float64(targetWaitTime) - 0.5
 	if inside > 1 {
@@ -928,15 +856,15 @@ func (r *topicRadius) adjustWithTicket(now mclock.AbsTime, targfafash common.Has
 	if inside < 0 {
 		inside = 0
 	}
-	r.adjust(now, targfafash, t.t.node.sha, inside)
+	r.adjust(now, targetHash, t.t.node.sha, inside)
 }
 
-func (r *topicRadius) adjust(now mclock.AbsTime, targfafash, addrHash common.Hash, inside float64) {
+func (r *topicRadius) adjust(now mclock.AbsTime, targetHash, addrHash common.Hash, inside float64) {
 	bucket := r.getBucketIdx(addrHash)
-	////fmt.Println("adjust", bucket, len(r.buckets), inside)
+	//fmt.Println("adjust", bucket, len(r.buckets), inside)
 	if bucket >= len(r.buckets) {
 		return
 	}
 	r.buckets[bucket].adjust(now, inside)
-	delete(r.buckets[bucket].lookupSent, targfafash)
+	delete(r.buckets[bucket].lookupSent, targetHash)
 }

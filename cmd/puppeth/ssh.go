@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -17,12 +28,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// sshClient is a small wrapper around Go's SSH client with a few utility mfafods
+// sshClient is a small wrapper around Go's SSH client with a few utility methods
 // implemented on top.
 type sshClient struct {
 	server  string // Server name or IP without port number
@@ -68,8 +79,8 @@ func dial(server string, pubkey []byte) (*sshClient, error) {
 	if username == "" {
 		username = user.Username
 	}
-	// Configure the supported authentication mfafods (private key and password)
-	var auths []ssh.AuthMfafod
+	// Configure the supported authentication methods (private key and password)
+	var auths []ssh.AuthMethod
 
 	path := filepath.Join(user.HomeDir, ".ssh", identity)
 	if buf, err := ioutil.ReadFile(path); err != nil {
@@ -79,7 +90,7 @@ func dial(server string, pubkey []byte) (*sshClient, error) {
 		if err != nil {
 			fmt.Printf("What's the decryption password for %s? (won't be echoed)\n>", path)
 			blob, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-			//fmt.Println()
+			fmt.Println()
 			if err != nil {
 				log.Warn("Couldn't read password", "err", err)
 			}
@@ -97,7 +108,7 @@ func dial(server string, pubkey []byte) (*sshClient, error) {
 		fmt.Printf("What's the login password for %s at %s? (won't be echoed)\n> ", username, server)
 		blob, err := terminal.ReadPassword(int(os.Stdin.Fd()))
 
-		//fmt.Println()
+		fmt.Println()
 		return string(blob), err
 	}))
 	// Resolve the IP address of the remote server
@@ -113,20 +124,25 @@ func dial(server string, pubkey []byte) (*sshClient, error) {
 	keycheck := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		// If no public key is known for SSH, ask the user to confirm
 		if pubkey == nil {
-			//fmt.Println()
+			fmt.Println()
 			fmt.Printf("The authenticity of host '%s (%s)' can't be established.\n", hostname, remote)
 			fmt.Printf("SSH key fingerprint is %s [MD5]\n", ssh.FingerprintLegacyMD5(key))
 			fmt.Printf("Are you sure you want to continue connecting (yes/no)? ")
 
-			text, err := bufio.NewReader(os.Stdin).ReadString('\n')
-			switch {
-			case err != nil:
-				return err
-			case strings.TrimSpace(text) == "yes":
-				pubkey = key.Marshal()
-				return nil
-			default:
-				return fmt.Errorf("unknown auth choice: %v", text)
+			for {
+				text, err := bufio.NewReader(os.Stdin).ReadString('\n')
+				switch {
+				case err != nil:
+					return err
+				case strings.TrimSpace(text) == "yes":
+					pubkey = key.Marshal()
+					return nil
+				case strings.TrimSpace(text) == "no":
+					return errors.New("users says no")
+				default:
+					fmt.Println("Please answer 'yes' or 'no'")
+					continue
+				}
 			}
 		}
 		// If a public key exists for this SSH server, check that it matches
@@ -156,7 +172,7 @@ func dial(server string, pubkey []byte) (*sshClient, error) {
 }
 
 // init runs some initialization commands on the remote server to ensure it's
-// capable of acting as puppfaf target.
+// capable of acting as puppeth target.
 func (client *sshClient) init() error {
 	client.logger.Debug("Verifying if docker is available")
 	if out, err := client.Run("docker version"); err != nil {

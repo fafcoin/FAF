@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package enode
 
@@ -59,7 +57,7 @@ func TestDBNodeItemKey(t *testing.T) {
 	if id != keytestID {
 		t.Errorf("splitNodeItemKey returned wrong ID: %v", id)
 	}
-	if !bytes.Equal(ip, wantIP) {
+	if !ip.Equal(wantIP) {
 		t.Errorf("splitNodeItemKey returned wrong IP: %v", ip)
 	}
 	if field != wantField {
@@ -103,8 +101,8 @@ func TestDBFetchStore(t *testing.T) {
 	node := NewV4(
 		hexPubkey("1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
 		net.IP{192, 168, 0, 1},
-		30606,
-		30606,
+		30303,
+		30303,
 	)
 	inst := time.Now()
 	num := 314
@@ -331,8 +329,8 @@ var nodeDBExpirationNodes = []struct {
 		node: NewV4(
 			hexPubkey("8d110e2ed4b446d9b5fb50f117e5f37fb7597af455e1dab0e6f045a6eeaa786a6781141659020d38bdc5e698ed3d4d2bafa8b5061810dfa63e8ac038db2e9b67"),
 			net.IP{127, 0, 0, 1},
-			30606,
-			30606,
+			30303,
+			30303,
 		),
 		storeNode: true,
 		pong:      time.Now().Add(-dbNodeExpiration + time.Minute),
@@ -449,4 +447,15 @@ func TestDBExpiration(t *testing.T) {
 			}
 		}
 	}
+}
+
+// This test checks that expiration works when discovery v5 data is present
+// in the database.
+func TestDBExpireV5(t *testing.T) {
+	db, _ := OpenDB("")
+	defer db.Close()
+
+	ip := net.IP{127, 0, 0, 1}
+	db.UpdateFindFailsV5(ID{}, ip, 4)
+	db.expireNodes()
 }

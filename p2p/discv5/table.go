@@ -1,13 +1,7 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
-// Package discv5 implements the RLPx v5 Topic Discovery Protocol.
-//
-// The Topic Discovery protocol provides a way to find RLPx nodes that
-// can be connected to. It uses a Kademlia-like protocol to maintain a
-// distributed database of the IDs and endpoints of all listening
-// nodes.
+
+// Package discv5 is a prototype implementation of Discvery v5.
+// Deprecated: do not use this package.
 package discv5
 
 import (
@@ -17,7 +11,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/fafereum/go-fafereum/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -175,7 +169,7 @@ func (tab *Table) closest(target common.Hash, nresults int) *nodesByDistance {
 // bucket has space available, adding the node succeeds immediately.
 // Otherwise, the node is added to the replacement cache for the bucket.
 func (tab *Table) add(n *Node) (contested *Node) {
-	////fmt.Println("add", n.addr().String(), n.ID.String(), n.sha.Hex())
+	//fmt.Println("add", n.addr().String(), n.ID.String(), n.sha.Hex())
 	if n.ID == tab.self.ID {
 		return
 	}
@@ -232,7 +226,7 @@ outer:
 // delete removes an entry from the node table (used to evacuate
 // failed/non-bonded discovery peers).
 func (tab *Table) delete(node *Node) {
-	////fmt.Println("delete", node.addr().String(), node.ID.String(), node.sha.Hex())
+	//fmt.Println("delete", node.addr().String(), node.ID.String(), node.sha.Hex())
 	bucket := tab.buckets[logdist(tab.self.sha, node.sha)]
 	for i := range bucket.entries {
 		if bucket.entries[i].ID == node.ID {

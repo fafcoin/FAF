@@ -1,6 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package accounts
 
@@ -9,12 +21,22 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/fafereum/go-fafereum/event"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/event"
 )
+
+// Config contains the settings of the global account manager.
+//
+// TODO(rjl493456442, karalabe, holiman): Get rid of this when account management
+// is removed in favor of Clef.
+type Config struct {
+	InsecureUnlockAllowed bool // Whether account unlocking in insecure environment is allowed
+}
 
 // Manager is an overarching account manager that can communicate with various
 // backends for signing transactions.
 type Manager struct {
+	config   *Config                    // Global account manager configurations
 	backends map[reflect.Type][]Backend // Index of backends currently registered
 	updaters []event.Subscription       // Wallet update subscriptions for all backends
 	updates  chan WalletEvent           // Subscription sink for backend wallet changes
@@ -28,7 +50,7 @@ type Manager struct {
 
 // NewManager creates a generic account manager to sign transaction via various
 // supported backends.
-func NewManager(backends ...Backend) *Manager {
+func NewManager(config *Config, backends ...Backend) *Manager {
 	// Retrieve the initial list of wallets from the backends and sort by URL
 	var wallets []Wallet
 	for _, backend := range backends {
@@ -43,6 +65,7 @@ func NewManager(backends ...Backend) *Manager {
 	}
 	// Assemble the account manager and return
 	am := &Manager{
+		config:   config,
 		backends: make(map[reflect.Type][]Backend),
 		updaters: subs,
 		updates:  updates,
@@ -63,6 +86,11 @@ func (am *Manager) Close() error {
 	errc := make(chan error)
 	am.quit <- errc
 	return <-errc
+}
+
+// Config returns the configuration of account manager.
+func (am *Manager) Config() *Config {
+	return am.config
 }
 
 // update is the wallet event loop listening for notifications from the backends
@@ -113,6 +141,11 @@ func (am *Manager) Wallets() []Wallet {
 	am.lock.RLock()
 	defer am.lock.RUnlock()
 
+	return am.walletsNoLock()
+}
+
+// walletsNoLock returns all registered wallets. Callers must hold am.lock.
+func (am *Manager) walletsNoLock() []Wallet {
 	cpy := make([]Wallet, len(am.wallets))
 	copy(cpy, am.wallets)
 	return cpy
@@ -127,7 +160,7 @@ func (am *Manager) Wallet(url string) (Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, wallet := range am.Wallets() {
+	for _, wallet := range am.walletsNoLock() {
 		if wallet.URL() == parsed {
 			return wallet, nil
 		}
@@ -135,8 +168,22 @@ func (am *Manager) Wallet(url string) (Wallet, error) {
 	return nil, ErrUnknownWallet
 }
 
+// Accounts returns all account addresses of all wallets within the account manager
+func (am *Manager) Accounts() []common.Address {
+	am.lock.RLock()
+	defer am.lock.RUnlock()
+
+	addresses := make([]common.Address, 0) // return [] instead of nil if empty
+	for _, wallet := range am.wallets {
+		for _, account := range wallet.Accounts() {
+			addresses = append(addresses, account.Address)
+		}
+	}
+	return addresses
+}
+
 // Find attempts to locate the wallet corresponding to a specific account. Since
-// accounts can be dynamically added to and removed from wallets, this mfafod has
+// accounts can be dynamically added to and removed from wallets, this method has
 // a linear runtime in the number of wallets.
 func (am *Manager) Find(account Account) (Wallet, error) {
 	am.lock.RLock()

@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package trie
 
@@ -10,20 +8,20 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/fafdb"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/fafdb/memorydb"
 )
 
 func TestIterator(t *testing.T) {
 	trie := newEmpty()
 	vals := []struct{ k, v string }{
 		{"do", "verb"},
-		{"fafer", "wookiedoo"},
+		{"ether", "wookiedoo"},
 		{"horse", "stallion"},
 		{"shaman", "horse"},
 		{"doge", "coin"},
 		{"dog", "puppy"},
-		{"somfafingveryoddindeedthis is", "myothernodedata"},
+		{"somethingveryoddindeedthis is", "myothernodedata"},
 	}
 	all := make(map[string]string)
 	for _, val := range vals {
@@ -108,11 +106,14 @@ func TestNodeIteratorCoverage(t *testing.T) {
 			}
 		}
 	}
-	for _, key := range db.diskdb.(*fafdb.MemDatabase).Keys() {
+	it := db.diskdb.NewIterator(nil, nil)
+	for it.Next() {
+		key := it.Key()
 		if _, ok := hashes[common.BytesToHash(key)]; !ok {
 			t.Errorf("state entry not reported %x", key)
 		}
 	}
+	it.Release()
 }
 
 type kvs struct{ k, v string }
@@ -277,7 +278,7 @@ func TestIteratorContinueAfterErrorDisk(t *testing.T)    { testIteratorContinueA
 func TestIteratorContinueAfterErrorMemonly(t *testing.T) { testIteratorContinueAfterError(t, true) }
 
 func testIteratorContinueAfterError(t *testing.T, memonly bool) {
-	diskdb := fafdb.NewMemDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
 
 	tr, _ := New(common.Hash{}, triedb)
@@ -286,7 +287,7 @@ func testIteratorContinueAfterError(t *testing.T, memonly bool) {
 	}
 	tr.Commit(nil)
 	if !memonly {
-		triedb.Commit(tr.Hash(), true)
+		triedb.Commit(tr.Hash(), true, nil)
 	}
 	wantNodeCount := checkIteratorNoDups(t, tr.NodeIterator(nil), nil)
 
@@ -297,7 +298,11 @@ func testIteratorContinueAfterError(t *testing.T, memonly bool) {
 	if memonly {
 		memKeys = triedb.Nodes()
 	} else {
-		diskKeys = diskdb.Keys()
+		it := diskdb.NewIterator(nil, nil)
+		for it.Next() {
+			diskKeys = append(diskKeys, it.Key())
+		}
+		it.Release()
 	}
 	for i := 0; i < 20; i++ {
 		// Create trie that will load all nodes from DB.
@@ -364,7 +369,7 @@ func TestIteratorContinueAfterSeekErrorMemonly(t *testing.T) {
 
 func testIteratorContinueAfterSeekError(t *testing.T, memonly bool) {
 	// Commit test trie to db, then remove the node containing "bars".
-	diskdb := fafdb.NewMemDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
 
 	ctr, _ := New(common.Hash{}, triedb)
@@ -373,7 +378,7 @@ func testIteratorContinueAfterSeekError(t *testing.T, memonly bool) {
 	}
 	root, _ := ctr.Commit(nil)
 	if !memonly {
-		triedb.Commit(root, true)
+		triedb.Commit(root, true, nil)
 	}
 	barNodeHash := common.HexToHash("05041990364eb72fcb1127652ce40d8bab765f2bfe53225b1170d276cc101c2e")
 	var (

@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -9,14 +20,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // manageServers displays a list of servers the user can disconnect from, and an
 // option to connect to new servers.
 func (w *wizard) manageServers() {
 	// List all the servers we can disconnect, along with an entry to connect a new one
-	//fmt.Println()
+	fmt.Println()
 
 	servers := w.conf.servers()
 	for i, server := range servers {
@@ -57,15 +68,15 @@ func (w *wizard) manageServers() {
 //
 // If connection succeeds, the server is added to the wizards configs!
 func (w *wizard) makeServer() string {
-	//fmt.Println()
-	//fmt.Println("What is the remote server's address ([username[:identity]@]hostname[:port])?")
+	fmt.Println()
+	fmt.Println("What is the remote server's address ([username[:identity]@]hostname[:port])?")
 
 	// Read and dial the server to ensure docker is present
 	input := w.readString()
 
 	client, err := dial(input, nil)
 	if err != nil {
-		log.Error("Server not ready for puppfaf", "err", err)
+		log.Error("Server not ready for puppeth", "err", err)
 		return ""
 	}
 	// All checks passed, start tracking the server
@@ -80,8 +91,8 @@ func (w *wizard) makeServer() string {
 // also granting the option to add a new one.
 func (w *wizard) selectServer() string {
 	// List the available server to the user and wait for a choice
-	//fmt.Println()
-	//fmt.Println("Which server do you want to interact with?")
+	fmt.Println()
+	fmt.Println("Which server do you want to interact with?")
 
 	servers := w.conf.servers()
 	for i, server := range servers {
@@ -105,7 +116,7 @@ func (w *wizard) selectServer() string {
 // and an option
 func (w *wizard) manageComponents() {
 	// List all the components we can tear down, along with an entry to deploy a new one
-	//fmt.Println()
+	fmt.Println()
 
 	var serviceHosts, serviceNames []string
 	for server, services := range w.services {
@@ -158,19 +169,19 @@ func (w *wizard) manageComponents() {
 // guides through the process.
 func (w *wizard) deployComponent() {
 	// Print all the things we can deploy and wait or user choice
-	//fmt.Println()
-	//fmt.Println("What would you like to deploy? (recommended order)")
-	//fmt.Println(" 1. fafstats  - Network monitoring tool")
-	//fmt.Println(" 2. Bootnode  - Entry point of the network")
-	//fmt.Println(" 3. Sealer    - Full node minting new blocks")
-	//fmt.Println(" 4. Explorer  - Chain analysis webservice (fafash only)")
-	//fmt.Println(" 5. Wallet    - Browser wallet for quick sends")
-	//fmt.Println(" 6. Faucet    - Crypto faucet to give away funds")
-	//fmt.Println(" 7. Dashboard - Website listing above web-services")
+	fmt.Println()
+	fmt.Println("What would you like to deploy? (recommended order)")
+	fmt.Println(" 1. Ethstats  - Network monitoring tool")
+	fmt.Println(" 2. Bootnode  - Entry point of the network")
+	fmt.Println(" 3. Sealer    - Full node minting new blocks")
+	fmt.Println(" 4. Explorer  - Chain analysis webservice")
+	fmt.Println(" 5. Wallet    - Browser wallet for quick sends")
+	fmt.Println(" 6. Faucet    - Crypto faucet to give away funds")
+	fmt.Println(" 7. Dashboard - Website listing above web-services")
 
 	switch w.read() {
 	case "1":
-		w.deployfafstats()
+		w.deployEthstats()
 	case "2":
 		w.deployNode(true)
 	case "3":
@@ -184,6 +195,6 @@ func (w *wizard) deployComponent() {
 	case "7":
 		w.deployDashboard()
 	default:
-		log.Error("That's not somfafing I can do")
+		log.Error("That's not something I can do")
 	}
 }

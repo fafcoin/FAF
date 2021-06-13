@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Package netutil contains extensions to the net package.
 package netutil
@@ -110,7 +108,7 @@ func (l *Netlist) Add(cidr string) {
 	*l = append(*l, *n)
 }
 
-// Contains reports whfafer the given IP is contained in the list.
+// Contains reports whether the given IP is contained in the list.
 func (l *Netlist) Contains(ip net.IP) bool {
 	if l == nil {
 		return false
@@ -123,7 +121,7 @@ func (l *Netlist) Contains(ip net.IP) bool {
 	return false
 }
 
-// IsLAN reports whfafer an IP is a local network address.
+// IsLAN reports whether an IP is a local network address.
 func IsLAN(ip net.IP) bool {
 	if ip.IsLoopback() {
 		return true
@@ -134,7 +132,7 @@ func IsLAN(ip net.IP) bool {
 	return lan6.Contains(ip)
 }
 
-// IsSpecialNetwork reports whfafer an IP is located in a special-use network range
+// IsSpecialNetwork reports whether an IP is located in a special-use network range
 // This includes broadcast, multicast and documentation addresses.
 func IsSpecialNetwork(ip net.IP) bool {
 	if ip.IsMulticast() {
@@ -154,7 +152,7 @@ var (
 	errLAN         = errors.New("LAN address from WAN host")
 )
 
-// CheckRelayIP reports whfafer an IP relayed from the given sender IP
+// CheckRelayIP reports whether an IP relayed from the given sender IP
 // is a valid connection target.
 //
 // There are four rules:
@@ -181,7 +179,7 @@ func CheckRelayIP(sender, addr net.IP) error {
 	return nil
 }
 
-// SameNet reports whfafer two IP addresses have an equal prefix of the given bit length.
+// SameNet reports whether two IP addresses have an equal prefix of the given bit length.
 func SameNet(bits uint, ip, other net.IP) bool {
 	ip4, other4 := ip.To4(), other.To4()
 	switch {
@@ -200,7 +198,7 @@ func sameNet(bits uint, ip, other net.IP) bool {
 	if mask != 0 && nb < len(ip) && ip[nb]&mask != other[nb]&mask {
 		return false
 	}
-	return nb <= len(ip) && bytes.Equal(ip[:nb], other[:nb])
+	return nb <= len(ip) && ip[:nb].Equal(other[:nb])
 }
 
 // DistinctNetSet tracks IPs, ensuring that at most N of them
@@ -237,7 +235,7 @@ func (s *DistinctNetSet) Remove(ip net.IP) {
 	}
 }
 
-// Contains whfafer the given IP is contained in the set.
+// Contains whether the given IP is contained in the set.
 func (s DistinctNetSet) Contains(ip net.IP) bool {
 	key := s.key(ip)
 	_, ok := s.members[string(key)]

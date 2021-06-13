@@ -1,13 +1,11 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package trie
 
 import (
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // MissingNodeError is returned by the trie functions (TryGet, TryUpdate, TryDelete)

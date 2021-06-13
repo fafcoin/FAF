@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -12,9 +23,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fafereum/go-fafereum/accounts/keystore"
-	"github.com/fafereum/go-fafereum/cmd/utils"
-	"github.com/fafereum/go-fafereum/crypto"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pborman/uuid"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -40,6 +51,10 @@ If you want to encrypt an existing private key, it can be specified by setting
 		cli.StringFlag{
 			Name:  "privatekey",
 			Usage: "file containing a raw private key to encrypt",
+		},
+		cli.BoolFlag{
+			Name:  "lightkdf",
+			Usage: "use less secure scrypt parameters",
 		},
 	},
 	Action: func(ctx *cli.Context) error {
@@ -79,8 +94,12 @@ If you want to encrypt an existing private key, it can be specified by setting
 		}
 
 		// Encrypt key with passphrase.
-		passphrase := promptPassphrase(true)
-		keyjson, err := keystore.EncryptKey(key, passphrase, keystore.StandardScryptN, keystore.StandardScryptP)
+		passphrase := getPassphrase(ctx, true)
+		scryptN, scryptP := keystore.StandardScryptN, keystore.StandardScryptP
+		if ctx.Bool("lightkdf") {
+			scryptN, scryptP = keystore.LightScryptN, keystore.LightScryptP
+		}
+		keyjson, err := keystore.EncryptKey(key, passphrase, scryptN, scryptP)
 		if err != nil {
 			utils.Fatalf("Error encrypting key: %v", err)
 		}
@@ -100,7 +119,7 @@ If you want to encrypt an existing private key, it can be specified by setting
 		if ctx.Bool(jsonFlag.Name) {
 			mustPrintJSON(out)
 		} else {
-			//fmt.Println("Address:", out.Address)
+			fmt.Println("Address:", out.Address)
 		}
 		return nil
 	},

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const rescalfafreshold = time.Hour
+const rescaleThreshold = time.Hour
 
 // Samples maintain a statistically-significant selection of values from
 // a stream.
@@ -55,7 +55,7 @@ func NewExpDecaySample(reservoirSize int, alpha float64) Sample {
 		t0:            time.Now(),
 		values:        newExpDecaySampleHeap(reservoirSize),
 	}
-	s.t1 = s.t0.Add(rescalfafreshold)
+	s.t1 = s.t0.Add(rescaleThreshold)
 	return s
 }
 
@@ -65,7 +65,7 @@ func (s *ExpDecaySample) Clear() {
 	defer s.mutex.Unlock()
 	s.count = 0
 	s.t0 = time.Now()
-	s.t1 = s.t0.Add(rescalfafreshold)
+	s.t1 = s.t0.Add(rescaleThreshold)
 	s.values.Clear()
 }
 
@@ -159,7 +159,7 @@ func (s *ExpDecaySample) Variance() float64 {
 	return SampleVariance(s.Values())
 }
 
-// update samples a new value at a particular timestamp.  This is a mfafod all
+// update samples a new value at a particular timestamp.  This is a method all
 // its own to facilitate testing.
 func (s *ExpDecaySample) update(t time.Time, v int64) {
 	s.mutex.Lock()
@@ -177,7 +177,7 @@ func (s *ExpDecaySample) update(t time.Time, v int64) {
 		t0 := s.t0
 		s.values.Clear()
 		s.t0 = t
-		s.t1 = s.t0.Add(rescalfafreshold)
+		s.t1 = s.t0.Add(rescaleThreshold)
 		for _, v := range values {
 			v.k = v.k * math.Exp(-s.alpha*s.t0.Sub(t0).Seconds())
 			s.values.Push(v)
@@ -234,7 +234,7 @@ func (NilSample) Variance() float64 { return 0.0 }
 
 // SampleMax returns the maximum value of the slice of int64.
 func SampleMax(values []int64) int64 {
-	if 0 == len(values) {
+	if len(values) == 0 {
 		return 0
 	}
 	var max int64 = math.MinInt64
@@ -248,7 +248,7 @@ func SampleMax(values []int64) int64 {
 
 // SampleMean returns the mean value of the slice of int64.
 func SampleMean(values []int64) float64 {
-	if 0 == len(values) {
+	if len(values) == 0 {
 		return 0.0
 	}
 	return float64(SampleSum(values)) / float64(len(values))
@@ -256,7 +256,7 @@ func SampleMean(values []int64) float64 {
 
 // SampleMin returns the minimum value of the slice of int64.
 func SampleMin(values []int64) int64 {
-	if 0 == len(values) {
+	if len(values) == 0 {
 		return 0
 	}
 	var min int64 = math.MaxInt64
@@ -382,7 +382,7 @@ func SampleSum(values []int64) int64 {
 
 // SampleVariance returns the variance of the slice of int64.
 func SampleVariance(values []int64) float64 {
-	if 0 == len(values) {
+	if len(values) == 0 {
 		return 0.0
 	}
 	m := SampleMean(values)

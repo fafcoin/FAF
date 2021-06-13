@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package nat
 
@@ -11,7 +9,7 @@ import (
 )
 
 // This test checks that autodisc doesn't hang and returns
-// consistent results when multiple goroutines call its mfafods
+// consistent results when multiple goroutines call its methods
 // concurrently.
 func TestAutoDiscRace(t *testing.T) {
 	ad := startautodisc("thing", func() Interface {

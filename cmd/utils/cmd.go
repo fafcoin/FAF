@@ -1,9 +1,20 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2014 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
-
-// Package utils contains internal helper functions for go-fafereum commands.
+// Package utils contains internal helper functions for go-ethereum commands.
 package utils
 
 import (
@@ -16,16 +27,16 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/rawdb"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/internal/debug"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/node"
-	"github.com/fafereum/go-fafereum/rlp"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/internal/debug"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const (
@@ -62,7 +73,7 @@ func StartNode(stack *node.Node) {
 		defer signal.Stop(sigc)
 		<-sigc
 		log.Info("Got interrupt, shutting down...")
-		go stack.Stop()
+		go stack.Close()
 		for i := 10; i > 0; i-- {
 			<-sigc
 			if i > 1 {
@@ -227,7 +238,7 @@ func ExportAppendChain(blockchain *core.BlockChain, fn string, first uint64, las
 }
 
 // ImportPreimages imports a batch of exported hash preimages into the database.
-func ImportPreimages(db *fafdb.LDBDatabase, fn string) error {
+func ImportPreimages(db fafdb.Database, fn string) error {
 	log.Info("Importing preimages", "file", fn)
 
 	// Open the file handle and potentially unwrap the gzip stream
@@ -274,7 +285,7 @@ func ImportPreimages(db *fafdb.LDBDatabase, fn string) error {
 
 // ExportPreimages exports all known hash preimages into the specified file,
 // truncating any data already present in the file.
-func ExportPreimages(db *fafdb.LDBDatabase, fn string) error {
+func ExportPreimages(db fafdb.Database, fn string) error {
 	log.Info("Exporting preimages", "file", fn)
 
 	// Open the file handle and potentially wrap with a gzip stream
@@ -290,7 +301,9 @@ func ExportPreimages(db *fafdb.LDBDatabase, fn string) error {
 		defer writer.(*gzip.Writer).Close()
 	}
 	// Iterate over the preimages and export them
-	it := db.NewIteratorWithPrefix([]byte("secure-key-"))
+	it := db.NewIterator([]byte("secure-key-"), nil)
+	defer it.Release()
+
 	for it.Next() {
 		if err := rlp.Encode(writer, it.Value()); err != nil {
 			return err

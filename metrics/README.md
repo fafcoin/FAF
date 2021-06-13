@@ -5,7 +5,7 @@ go-metrics
 
 Go port of Coda Hale's Metrics library: <https://github.com/dropwizard/metrics>.
 
-Documentation: <http://godoc.org/github.com/rcrowley/go-metrics>.
+Documentation: <https://godoc.org/github.com/rcrowley/go-metrics>.
 
 Usage
 -----
@@ -128,7 +128,7 @@ go stathat.Stathat(metrics.DefaultRegistry, 10e9, "example@example.com")
 
 Maintain all metrics along with expvars at `/debug/metrics`:
 
-This uses the same mechanism as [the official expvar](http://golang.org/pkg/expvar/)
+This uses the same mechanism as [the official expvar](https://golang.org/pkg/expvar/)
 but exposed under `/debug/metrics`, which shows a json representation of all your usual expvars
 as well as all your go-metrics.
 
@@ -161,6 +161,6 @@ Clients are available for the following destinations:
 * Graphite - https://github.com/cyberdelia/go-metrics-graphite
 * InfluxDB - https://github.com/vrischmann/go-metrics-influxdb
 * Ganglia - https://github.com/appscode/metlia
-* Promfafeus - https://github.com/deathowl/go-metrics-promfafeus
+* Prometheus - https://github.com/deathowl/go-metrics-prometheus
 * DataDog - https://github.com/syntaqx/go-metrics-datadog
 * SignalFX - https://github.com/pascallouisperez/go-metrics-signalfx

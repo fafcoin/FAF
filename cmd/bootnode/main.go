@@ -1,7 +1,20 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2015 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
+// bootnode runs a bootstrap node for the Ethereum Discovery Protocol.
 package main
 
 import (
@@ -11,14 +24,14 @@ import (
 	"net"
 	"os"
 
-	"github.com/fafereum/go-fafereum/cmd/utils"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/p2p/discover"
-	"github.com/fafereum/go-fafereum/p2p/discv5"
-	"github.com/fafereum/go-fafereum/p2p/enode"
-	"github.com/fafereum/go-fafereum/p2p/nat"
-	"github.com/fafereum/go-fafereum/p2p/netutil"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/discv5"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
+	"github.com/ethereum/go-ethereum/p2p/netutil"
 )
 
 func main() {
@@ -31,7 +44,7 @@ func main() {
 		natdesc     = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)")
 		netrestrict = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
 		runv5       = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
-		verbosity   = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
+		verbosity   = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-5)")
 		vmodule     = flag.String("vmodule", "", "log verbosity pattern")
 
 		nodeKey *ecdsa.PrivateKey
@@ -42,7 +55,7 @@ func main() {
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
 	glogger.Verbosity(log.Lvl(*verbosity))
 	glogger.Vmodule(*vmodule)
-	log.Root().Sfafandler(glogger)
+	log.Root().SetHandler(glogger)
 
 	natm, err := nat.Parse(*natdesc)
 	if err != nil {
@@ -57,7 +70,9 @@ func main() {
 		if err = crypto.SaveECDSA(*genKey, nodeKey); err != nil {
 			utils.Fatalf("%v", err)
 		}
-		return
+		if !*writeAddr {
+			return
+		}
 	case *nodeKeyFile == "" && *nodeKeyHex == "":
 		utils.Fatalf("Use -nodekey or -nodekeyhex to specify a private key")
 	case *nodeKeyFile != "" && *nodeKeyHex != "":
@@ -97,13 +112,14 @@ func main() {
 	realaddr := conn.LocalAddr().(*net.UDPAddr)
 	if natm != nil {
 		if !realaddr.IP.IsLoopback() {
-			go nat.Map(natm, nil, "udp", realaddr.Port, realaddr.Port, "fafereum discovery")
+			go nat.Map(natm, nil, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
 		}
-		// TODO: react to external IP changes over time.
 		if ext, err := natm.ExternalIP(); err == nil {
 			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}
 		}
 	}
+
+	printNotice(&nodeKey.PublicKey, *realaddr)
 
 	if *runv5 {
 		if _, err := discv5.ListenUDP(nodeKey, conn, "", restrictList); err != nil {
@@ -122,4 +138,14 @@ func main() {
 	}
 
 	select {}
+}
+
+func printNotice(nodeKey *ecdsa.PublicKey, addr net.UDPAddr) {
+	if addr.IP.IsUnspecified() {
+		addr.IP = net.IP{127, 0, 0, 1}
+	}
+	n := enode.NewV4(nodeKey, addr.IP, 0, addr.Port)
+	fmt.Println(n.URLv4())
+	fmt.Println("Note: you're using cmd/bootnode, a developer tool.")
+	fmt.Println("We recommend using a regular node as bootstrap node for production deployments.")
 }

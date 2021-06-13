@@ -1,10 +1,8 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 //+build !go1.5
 
-// no-op implementation of tracing mfafods for Go < 1.5.
+// no-op implementation of tracing methods for Go < 1.5.
 
 package debug
 

@@ -1,6 +1,6 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2015 Jeffrey Wilcke, Felix Lange, Gustav Simonsson. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be found in
+// the LICENSE file.
 
 package secp256k1
 

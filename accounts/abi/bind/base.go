@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package bind
 
@@ -10,34 +8,34 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/fafereum/go-fafereum"
-	"github.com/fafereum/go-fafereum/accounts/abi"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/event"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/event"
 )
 
-// SignerFn is a signer function callback when a contract requires a mfafod to
+// SignerFn is a signer function callback when a contract requires a method to
 // sign the transaction before submission.
-type SignerFn func(types.Signer, common.Address, *types.Transaction) (*types.Transaction, error)
+type SignerFn func(common.Address, *types.Transaction) (*types.Transaction, error)
 
 // CallOpts is the collection of options to fine tune a contract call request.
 type CallOpts struct {
-	Pending     bool            // Whfafer to operate on the pending state or the last known one
+	Pending     bool            // Whether to operate on the pending state or the last known one
 	From        common.Address  // Optional the sender address, otherwise the first account is used
 	BlockNumber *big.Int        // Optional the block number on which the call should be performed
 	Context     context.Context // Network context to support cancellation and timeouts (nil = no timeout)
 }
 
 // TransactOpts is the collection of authorization data required to create a
-// valid fafereum transaction.
+// valid Ethereum transaction.
 type TransactOpts struct {
-	From   common.Address // fafereum account to send the transaction from
+	From   common.Address // Ethereum account to send the transaction from
 	Nonce  *big.Int       // Nonce to use for the transaction execution (nil = use pending state)
-	Signer SignerFn       // Mfafod to use for signing the transaction (mandatory)
+	Signer SignerFn       // Method to use for signing the transaction (mandatory)
 
-	Value    *big.Int // Funds to transfer along along the transaction (nil = 0 = no funds)
+	Value    *big.Int // Funds to transfer along the transaction (nil = 0 = no funds)
 	GasPrice *big.Int // Gas price to use for the transaction execution (nil = gas price oracle)
 	GasLimit uint64   // Gas limit to set for the transaction execution (0 = estimate)
 
@@ -61,11 +59,11 @@ type WatchOpts struct {
 }
 
 // BoundContract is the base wrapper object that reflects a contract on the
-// fafereum network. It contains a collection of mfafods that are used by the
+// Ethereum network. It contains a collection of methods that are used by the
 // higher level contract bindings to operate.
 type BoundContract struct {
-	address    common.Address     // Deployment address of the contract on the fafereum blockchain
-	abi        abi.ABI            // Reflect based ABI to access the correct fafereum mfafods
+	address    common.Address     // Deployment address of the contract on the Ethereum blockchain
+	abi        abi.ABI            // Reflect based ABI to access the correct Ethereum methods
 	caller     ContractCaller     // Read interface to interact with the blockchain
 	transactor ContractTransactor // Write interface to interact with the blockchain
 	filterer   ContractFilterer   // Event filtering to interact with the blockchain
@@ -83,7 +81,7 @@ func NewBoundContract(address common.Address, abi abi.ABI, caller ContractCaller
 	}
 }
 
-// DeployContract deploys a contract onto the fafereum blockchain and binds the
+// DeployContract deploys a contract onto the Ethereum blockchain and binds the
 // deployment address with a Go wrapper.
 func DeployContract(opts *TransactOpts, abi abi.ABI, bytecode []byte, backend ContractBackend, params ...interface{}) (common.Address, *types.Transaction, *BoundContract, error) {
 	// Otherwise try to deploy the contract
@@ -101,22 +99,25 @@ func DeployContract(opts *TransactOpts, abi abi.ABI, bytecode []byte, backend Co
 	return c.address, tx, c, nil
 }
 
-// Call invokes the (constant) contract mfafod with params as input values and
+// Call invokes the (constant) contract method with params as input values and
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (c *BoundContract) Call(opts *CallOpts, result interface{}, mfafod string, params ...interface{}) error {
+func (c *BoundContract) Call(opts *CallOpts, results *[]interface{}, method string, params ...interface{}) error {
 	// Don't crash on a lazy user
 	if opts == nil {
 		opts = new(CallOpts)
 	}
+	if results == nil {
+		results = new([]interface{})
+	}
 	// Pack the input, call and unpack the results
-	input, err := c.abi.Pack(mfafod, params...)
+	input, err := c.abi.Pack(method, params...)
 	if err != nil {
 		return err
 	}
 	var (
-		msg    = fafereum.CallMsg{From: opts.From, To: &c.address, Data: input}
+		msg    = ethereum.CallMsg{From: opts.From, To: &c.address, Data: input}
 		ctx    = ensureContext(opts.Context)
 		code   []byte
 		output []byte
@@ -137,7 +138,10 @@ func (c *BoundContract) Call(opts *CallOpts, result interface{}, mfafod string, 
 		}
 	} else {
 		output, err = c.caller.CallContract(ctx, msg, opts.BlockNumber)
-		if err == nil && len(output) == 0 {
+		if err != nil {
+			return err
+		}
+		if len(output) == 0 {
 			// Make sure we have a contract to operate on, and bail out otherwise.
 			if code, err = c.caller.CodeAt(ctx, c.address, opts.BlockNumber); err != nil {
 				return err
@@ -146,25 +150,41 @@ func (c *BoundContract) Call(opts *CallOpts, result interface{}, mfafod string, 
 			}
 		}
 	}
-	if err != nil {
+
+	if len(*results) == 0 {
+		res, err := c.abi.Unpack(method, output)
+		*results = res
 		return err
 	}
-	return c.abi.Unpack(result, mfafod, output)
+	res := *results
+	return c.abi.UnpackIntoInterface(res[0], method, output)
 }
 
-// Transact invokes the (paid) contract mfafod with params as input values.
-func (c *BoundContract) Transact(opts *TransactOpts, mfafod string, params ...interface{}) (*types.Transaction, error) {
+// Transact invokes the (paid) contract method with params as input values.
+func (c *BoundContract) Transact(opts *TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
 	// Otherwise pack up the parameters and invoke the contract
-	input, err := c.abi.Pack(mfafod, params...)
+	input, err := c.abi.Pack(method, params...)
 	if err != nil {
 		return nil, err
 	}
+	// todo(rjl493456442) check the method is payable or not,
+	// reject invalid transaction at the first place
 	return c.transact(opts, &c.address, input)
 }
 
+// RawTransact initiates a transaction with the given raw calldata as the input.
+// It's usually used to initiate transactions for invoking **Fallback** function.
+func (c *BoundContract) RawTransact(opts *TransactOpts, calldata []byte) (*types.Transaction, error) {
+	// todo(rjl493456442) check the method is payable or not,
+	// reject invalid transaction at the first place
+	return c.transact(opts, &c.address, calldata)
+}
+
 // Transfer initiates a plain transaction to move funds to the contract, calling
-// its default mfafod if one is available.
+// its default method if one is available.
 func (c *BoundContract) Transfer(opts *TransactOpts) (*types.Transaction, error) {
+	// todo(rjl493456442) check the payable fallback or receive is defined
+	// or not, reject invalid transaction at the first place
 	return c.transact(opts, &c.address, nil)
 }
 
@@ -197,7 +217,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	}
 	gasLimit := opts.GasLimit
 	if gasLimit == 0 {
-		// Gas estimation cannot succeed without code for mfafod invocations
+		// Gas estimation cannot succeed without code for method invocations
 		if contract != nil {
 			if code, err := c.transactor.PendingCodeAt(ensureContext(opts.Context), c.address); err != nil {
 				return nil, err
@@ -206,7 +226,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 			}
 		}
 		// If the contract surely has code (or code is not needed), estimate the transaction
-		msg := fafereum.CallMsg{From: opts.From, To: contract, Value: value, Data: input}
+		msg := ethereum.CallMsg{From: opts.From, To: contract, GasPrice: gasPrice, Value: value, Data: input}
 		gasLimit, err = c.transactor.EstimateGas(ensureContext(opts.Context), msg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
@@ -222,7 +242,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	if opts.Signer == nil {
 		return nil, errors.New("no signer to authorize the transaction with")
 	}
-	signedTx, err := opts.Signer(types.HomesteadSigner{}, opts.From, rawTx)
+	signedTx, err := opts.Signer(opts.From, rawTx)
 	if err != nil {
 		return nil, err
 	}
@@ -240,16 +260,16 @@ func (c *BoundContract) FilterLogs(opts *FilterOpts, name string, query ...[]int
 		opts = new(FilterOpts)
 	}
 	// Append the event selector to the query parameters and construct the topic set
-	query = append([][]interface{}{{c.abi.Events[name].Id()}}, query...)
+	query = append([][]interface{}{{c.abi.Events[name].ID}}, query...)
 
-	topics, err := makeTopics(query...)
+	topics, err := abi.MakeTopics(query...)
 	if err != nil {
 		return nil, nil, err
 	}
 	// Start the background filtering
 	logs := make(chan types.Log, 128)
 
-	config := fafereum.FilterQuery{
+	config := ethereum.FilterQuery{
 		Addresses: []common.Address{c.address},
 		Topics:    topics,
 		FromBlock: new(big.Int).SetUint64(opts.Start),
@@ -257,7 +277,7 @@ func (c *BoundContract) FilterLogs(opts *FilterOpts, name string, query ...[]int
 	if opts.End != nil {
 		config.ToBlock = new(big.Int).SetUint64(*opts.End)
 	}
-	/* TODO(karalabe): Replace the rest of the mfafod below with this when supported
+	/* TODO(karalabe): Replace the rest of the method below with this when supported
 	sub, err := c.filterer.SubscribeFilterLogs(ensureContext(opts.Context), config, logs)
 	*/
 	buff, err := c.filterer.FilterLogs(ensureContext(opts.Context), config)
@@ -289,16 +309,16 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 		opts = new(WatchOpts)
 	}
 	// Append the event selector to the query parameters and construct the topic set
-	query = append([][]interface{}{{c.abi.Events[name].Id()}}, query...)
+	query = append([][]interface{}{{c.abi.Events[name].ID}}, query...)
 
-	topics, err := makeTopics(query...)
+	topics, err := abi.MakeTopics(query...)
 	if err != nil {
 		return nil, nil, err
 	}
 	// Start the background filtering
 	logs := make(chan types.Log, 128)
 
-	config := fafereum.FilterQuery{
+	config := ethereum.FilterQuery{
 		Addresses: []common.Address{c.address},
 		Topics:    topics,
 	}
@@ -315,7 +335,7 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 // UnpackLog unpacks a retrieved log into the provided output structure.
 func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) error {
 	if len(log.Data) > 0 {
-		if err := c.abi.Unpack(out, event, log.Data); err != nil {
+		if err := c.abi.UnpackIntoInterface(out, event, log.Data); err != nil {
 			return err
 		}
 	}
@@ -325,10 +345,26 @@ func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) 
 			indexed = append(indexed, arg)
 		}
 	}
-	return parseTopics(out, indexed, log.Topics[1:])
+	return abi.ParseTopics(out, indexed, log.Topics[1:])
 }
 
-// ensureContext is a helper mfafod to ensure a context is not nil, even if the
+// UnpackLogIntoMap unpacks a retrieved log into the provided map.
+func (c *BoundContract) UnpackLogIntoMap(out map[string]interface{}, event string, log types.Log) error {
+	if len(log.Data) > 0 {
+		if err := c.abi.UnpackIntoMap(out, event, log.Data); err != nil {
+			return err
+		}
+	}
+	var indexed abi.Arguments
+	for _, arg := range c.abi.Events[event].Inputs {
+		if arg.Indexed {
+			indexed = append(indexed, arg)
+		}
+	}
+	return abi.ParseTopicsIntoMap(out, indexed, log.Topics[1:])
+}
+
+// ensureContext is a helper method to ensure a context is not nil, even if the
 // user specified it as such.
 func ensureContext(ctx context.Context) context.Context {
 	if ctx == nil {

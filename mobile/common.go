@@ -1,10 +1,8 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains all the wrappers from the common package.
 
-package gfaf
+package geth
 
 import (
 	"encoding/hex"
@@ -12,7 +10,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/common"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
@@ -32,7 +31,7 @@ func NewHashFromBytes(binary []byte) (hash *Hash, _ error) {
 // NewHashFromHex converts a hex string to a hash value.
 func NewHashFromHex(hex string) (hash *Hash, _ error) {
 	h := new(Hash)
-	if err := h.Sfafex(hex); err != nil {
+	if err := h.SetHex(hex); err != nil {
 		return nil, err
 	}
 	return h, nil
@@ -52,8 +51,8 @@ func (h *Hash) GetBytes() []byte {
 	return h.hash[:]
 }
 
-// Sfafex sets the specified hex string as the hash value.
-func (h *Hash) Sfafex(hash string) error {
+// SetHex sets the specified hex string as the hash value.
+func (h *Hash) SetHex(hash string) error {
 	hash = strings.ToLower(hash)
 	if len(hash) >= 2 && hash[:2] == "0x" {
 		hash = hash[2:]
@@ -69,9 +68,14 @@ func (h *Hash) Sfafex(hash string) error {
 	return nil
 }
 
-// Gfafex retrieves the hex string representation of the hash.
-func (h *Hash) Gfafex() string {
+// GetHex retrieves the hex string representation of the hash.
+func (h *Hash) GetHex() string {
 	return h.hash.Hex()
+}
+
+// String implements Stringer interface for printable representation of the hash.
+func (h *Hash) String() string {
+	return h.GetHex()
 }
 
 // Hashes represents a slice of hashes.
@@ -116,7 +120,7 @@ func (h *Hashes) Append(hash *Hash) {
 	h.hashes = append(h.hashes, hash.hash)
 }
 
-// Address represents the 20 byte address of an fafereum account.
+// Address represents the 20 byte address of an Ethereum account.
 type Address struct {
 	address common.Address
 }
@@ -133,7 +137,7 @@ func NewAddressFromBytes(binary []byte) (address *Address, _ error) {
 // NewAddressFromHex converts a hex string to a address value.
 func NewAddressFromHex(hex string) (address *Address, _ error) {
 	a := new(Address)
-	if err := a.Sfafex(hex); err != nil {
+	if err := a.SetHex(hex); err != nil {
 		return nil, err
 	}
 	return a, nil
@@ -153,8 +157,8 @@ func (a *Address) GetBytes() []byte {
 	return a.address[:]
 }
 
-// Sfafex sets the specified hex string as the address value.
-func (a *Address) Sfafex(address string) error {
+// SetHex sets the specified hex string as the address value.
+func (a *Address) SetHex(address string) error {
 	address = strings.ToLower(address)
 	if len(address) >= 2 && address[:2] == "0x" {
 		address = address[2:]
@@ -170,9 +174,14 @@ func (a *Address) Sfafex(address string) error {
 	return nil
 }
 
-// Gfafex retrieves the hex string representation of the address.
-func (a *Address) Gfafex() string {
+// GetHex retrieves the hex string representation of the address.
+func (a *Address) GetHex() string {
 	return a.address.Hex()
+}
+
+// String returns a printable representation of the address.
+func (a *Address) String() string {
+	return a.GetHex()
 }
 
 // Addresses represents a slice of addresses.
@@ -215,4 +224,14 @@ func (a *Addresses) Set(index int, address *Address) error {
 // Append adds a new address element to the end of the slice.
 func (a *Addresses) Append(address *Address) {
 	a.addresses = append(a.addresses, address.address)
+}
+
+// EncodeToHex encodes b as a hex string with 0x prefix.
+func EncodeToHex(b []byte) string {
+	return hexutil.Encode(b)
+}
+
+// DecodeFromHex decodes a hex string with 0x prefix.
+func DecodeFromHex(s string) ([]byte, error) {
+	return hexutil.Decode(s)
 }

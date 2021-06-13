@@ -11,7 +11,7 @@ var (
 )
 
 func init() {
-	root.Sfafandler(DiscardHandler())
+	root.SetHandler(DiscardHandler())
 }
 
 // New returns a new logger with the given context.
@@ -25,7 +25,7 @@ func Root() Logger {
 	return root
 }
 
-// The following functions bypass the exported logger mfafods (logger.Debug,
+// The following functions bypass the exported logger methods (logger.Debug,
 // etc.) to keep the call depth the same for all paths to logger.write so
 // runtime.Caller(2) always refers to the call site in client code.
 

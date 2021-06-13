@@ -42,7 +42,6 @@ class PipeTransport(ServerTransport):
         self.output.write("\n")
 
 class StdIOHandler():
-
     def __init__(self):
         pass
 
@@ -52,7 +51,7 @@ class StdIOHandler():
         Example request:
         {
             "jsonrpc": "2.0",
-            "mfafod": "ApproveTx",
+            "method": "ApproveTx",
             "params": [{
                 "transaction": {
                     "to": "0xae967917c465db8578ca9024c205720b1a3651A9",
@@ -63,7 +62,7 @@ class StdIOHandler():
                     "nonce": "0x0"
                 },
                 "from": "0xAe967917c465db8578ca9024c205720b1a3651A9",
-                "call_info": "Warning! Could not validate ABI-data against calldata\nSupplied ABI spec does not contain mfafod signature in data: 0xd7a58658",
+                "call_info": "Warning! Could not validate ABI-data against calldata\nSupplied ABI spec does not contain method signature in data: 0xd7a58658",
                 "meta": {
                     "remote": "127.0.0.1:34572",
                     "local": "localhost:8550",
@@ -76,7 +75,7 @@ class StdIOHandler():
         :param transaction: transaction info
         :param call_info: info abou the call, e.g. if ABI info could not be
         :param meta: metadata about the request, e.g. where the call comes from
-        :return: 
+        :return:
         """
         transaction = req.get('transaction')
         _from       = req.get('from')
@@ -134,7 +133,7 @@ class StdIOHandler():
         """
         Example request:
 
-        {"jsonrpc":"2.0","mfafod":"ShowInfo","params":{"message":"Testing 'ShowError'"},"id":1}
+        {"jsonrpc":"2.0","method":"ShowInfo","params":{"message":"Testing 'ShowError'"},"id":1}
 
         :param message: to show
         :return: nothing
@@ -147,7 +146,7 @@ class StdIOHandler():
     def ShowInfo(self,message = {}):
         """
         Example request
-        {"jsonrpc":"2.0","mfafod":"ShowInfo","params":{"message":"Testing 'ShowInfo'"},"id":0}
+        {"jsonrpc":"2.0","method":"ShowInfo","params":{"message":"Testing 'ShowInfo'"},"id":0}
 
         :param message: to display
         :return:nothing
@@ -158,8 +157,7 @@ class StdIOHandler():
         return
 
 def main(args):
-
-    cmd = ["./clef", "--stdio-ui"]
+    cmd = ["clef", "--stdio-ui"]
     if len(args) > 0 and args[0] == "test":
         cmd.extend(["--stdio-ui-test"])
     print("cmd: {}".format(" ".join(cmd)))

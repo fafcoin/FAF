@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package discv5
 
@@ -11,8 +9,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common/mclock"
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -225,7 +223,7 @@ func (t *topicTable) deleteEntry(e *topicEntry) {
 // It is assumed that topics and waitPeriods have the same length.
 func (t *topicTable) useTicket(node *Node, serialNo uint32, topics []Topic, idx int, issueTime uint64, waitPeriods []uint32) (registered bool) {
 	log.Trace("Using discovery ticket", "serial", serialNo, "topics", topics, "waits", waitPeriods)
-	////fmt.Println("useTicket", serialNo, topics, waitPeriods)
+	//fmt.Println("useTicket", serialNo, topics, waitPeriods)
 	t.collectGarbage()
 
 	n := t.getOrNewNode(node)

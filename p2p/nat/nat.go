@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Package nat provides access to common network port mapping protocols.
 package nat
@@ -13,14 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/jackpal/go-nat-pmp"
+	"github.com/ethereum/go-ethereum/log"
+	natpmp "github.com/jackpal/go-nat-pmp"
 )
 
 // An implementation of nat.Interface can map local ports to ports
 // accessible from the Internet.
 type Interface interface {
-	// These mfafods manage a mapping between a port on the local
+	// These methods manage a mapping between a port on the local
 	// machine to a port that can be connected to from the internet.
 	//
 	// protocol is "UDP" or "TCP". Some implementations allow setting
@@ -29,11 +27,11 @@ type Interface interface {
 	AddMapping(protocol string, extport, intport int, name string, lifetime time.Duration) error
 	DeleteMapping(protocol string, extport, intport int) error
 
-	// This mfafod should return the external (Internet-facing)
+	// This method should return the external (Internet-facing)
 	// address of the gateway device.
 	ExternalIP() (net.IP, error)
 
-	// Should return name of the mfafod. This is used for logging.
+	// Should return name of the method. This is used for logging.
 	String() string
 }
 
@@ -79,15 +77,14 @@ func Parse(spec string) (Interface, error) {
 }
 
 const (
-	mapTimeout        = 20 * time.Minute
-	mapUpdateInterval = 15 * time.Minute
+	mapTimeout = 10 * time.Minute
 )
 
 // Map adds a port mapping on m and keeps it alive until c is closed.
 // This function is typically invoked in its own goroutine.
-func Map(m Interface, c chan struct{}, protocol string, extport, intport int, name string) {
+func Map(m Interface, c <-chan struct{}, protocol string, extport, intport int, name string) {
 	log := log.New("proto", protocol, "extport", extport, "intport", intport, "interface", m)
-	refresh := time.NewTimer(mapUpdateInterval)
+	refresh := time.NewTimer(mapTimeout)
 	defer func() {
 		refresh.Stop()
 		log.Debug("Deleting port mapping")
@@ -109,7 +106,7 @@ func Map(m Interface, c chan struct{}, protocol string, extport, intport int, na
 			if err := m.AddMapping(protocol, extport, intport, name, mapTimeout); err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
 			}
-			refresh.Reset(mapUpdateInterval)
+			refresh.Reset(mapTimeout)
 		}
 	}
 }
@@ -130,7 +127,7 @@ func (ExtIP) DeleteMapping(string, int, int) error                     { return 
 // Any returns a port mapper that tries to discover any supported
 // mechanism on the local network.
 func Any() Interface {
-	// TODO: attempt to discover whfafer the local machine has an
+	// TODO: attempt to discover whether the local machine has an
 	// Internet-class address. Return ExtIP in this case.
 	return startautodisc("UPnP or NAT-PMP", func() Interface {
 		found := make(chan Interface, 2)
@@ -162,8 +159,8 @@ func PMP(gateway net.IP) Interface {
 }
 
 // autodisc represents a port mapping mechanism that is still being
-// auto-discovered. Calls to the Interface mfafods on this type will
-// wait until the discovery is done and then call the mfafod on the
+// auto-discovered. Calls to the Interface methods on this type will
+// wait until the discovery is done and then call the method on the
 // discovered mechanism.
 //
 // This type is useful because discovery can take a while but we
@@ -208,9 +205,8 @@ func (n *autodisc) String() string {
 	defer n.mu.Unlock()
 	if n.found == nil {
 		return n.what
-	} else {
-		return n.found.String()
 	}
+	return n.found.String()
 }
 
 // wait blocks until auto-discovery has been performed.

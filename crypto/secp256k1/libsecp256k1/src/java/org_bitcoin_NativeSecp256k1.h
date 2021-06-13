@@ -10,7 +10,7 @@ extern "C" {
 #endif
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_ctx_clone
+ * Method:    secp256k1_ctx_clone
  * Signature: (J)J
  */
 SECP256K1_API jlong JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ctx_1clone
@@ -18,7 +18,7 @@ SECP256K1_API jlong JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ctx_1clo
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_context_randomize
+ * Method:    secp256k1_context_randomize
  * Signature: (Ljava/nio/ByteBuffer;J)I
  */
 SECP256K1_API jint JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1context_1randomize
@@ -26,7 +26,7 @@ SECP256K1_API jint JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1context_1
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_privkey_tweak_add
+ * Method:    secp256k1_privkey_tweak_add
  * Signature: (Ljava/nio/ByteBuffer;J)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1privkey_1tweak_1add
@@ -34,7 +34,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1p
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_privkey_tweak_mul
+ * Method:    secp256k1_privkey_tweak_mul
  * Signature: (Ljava/nio/ByteBuffer;J)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1privkey_1tweak_1mul
@@ -42,7 +42,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1p
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_pubkey_tweak_add
+ * Method:    secp256k1_pubkey_tweak_add
  * Signature: (Ljava/nio/ByteBuffer;JI)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1pubkey_1tweak_1add
@@ -50,7 +50,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1p
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_pubkey_tweak_mul
+ * Method:    secp256k1_pubkey_tweak_mul
  * Signature: (Ljava/nio/ByteBuffer;JI)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1pubkey_1tweak_1mul
@@ -58,7 +58,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1p
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_destroy_context
+ * Method:    secp256k1_destroy_context
  * Signature: (J)V
  */
 SECP256K1_API void JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1destroy_1context
@@ -66,7 +66,7 @@ SECP256K1_API void JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1destroy_1
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_ecdsa_verify
+ * Method:    secp256k1_ecdsa_verify
  * Signature: (Ljava/nio/ByteBuffer;JII)I
  */
 SECP256K1_API jint JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ecdsa_1verify
@@ -74,7 +74,7 @@ SECP256K1_API jint JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ecdsa_1ve
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_ecdsa_sign
+ * Method:    secp256k1_ecdsa_sign
  * Signature: (Ljava/nio/ByteBuffer;J)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ecdsa_1sign
@@ -82,7 +82,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1e
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_ec_seckey_verify
+ * Method:    secp256k1_ec_seckey_verify
  * Signature: (Ljava/nio/ByteBuffer;J)I
  */
 SECP256K1_API jint JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ec_1seckey_1verify
@@ -90,7 +90,7 @@ SECP256K1_API jint JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ec_1secke
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_ec_pubkey_create
+ * Method:    secp256k1_ec_pubkey_create
  * Signature: (Ljava/nio/ByteBuffer;J)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ec_1pubkey_1create
@@ -98,7 +98,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1e
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_ec_pubkey_parse
+ * Method:    secp256k1_ec_pubkey_parse
  * Signature: (Ljava/nio/ByteBuffer;JI)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ec_1pubkey_1parse
@@ -106,7 +106,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1e
 
 /*
  * Class:     org_bitcoin_NativeSecp256k1
- * Mfafod:    secp256k1_ecdh
+ * Method:    secp256k1_ecdh
  * Signature: (Ljava/nio/ByteBuffer;JI)[[B
  */
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ecdh

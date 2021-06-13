@@ -1,14 +1,13 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package tests
 
 import (
 	"fmt"
 	"math/big"
+	"sort"
 
-	"github.com/fafereum/go-fafereum/params"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // Forks table defines supported forks and their chain config.
@@ -63,6 +62,18 @@ var Forks = map[string]*params.ChainConfig{
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 	},
+	"Istanbul": {
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		DAOForkBlock:        big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+	},
 	"FrontierToHomesteadAt5": {
 		ChainID:        big.NewInt(1),
 		HomesteadBlock: big.NewInt(5),
@@ -95,6 +106,63 @@ var Forks = map[string]*params.ChainConfig{
 		ByzantiumBlock:      big.NewInt(0),
 		ConstantinopleBlock: big.NewInt(5),
 	},
+	"ByzantiumToConstantinopleFixAt5": {
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(5),
+		PetersburgBlock:     big.NewInt(5),
+	},
+	"ConstantinopleFixToIstanbulAt5": {
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(5),
+	},
+	"YOLOv2": {
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		YoloV2Block:         big.NewInt(0),
+	},
+	// This specification is subject to change, but is for now identical to YOLOv2
+	// for cross-client testing purposes
+	"Berlin": {
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		YoloV2Block:         big.NewInt(0),
+	},
+}
+
+// Returns the set of defined fork names
+func AvailableForks() []string {
+	var availableForks []string
+	for k := range Forks {
+		availableForks = append(availableForks, k)
+	}
+	sort.Strings(availableForks)
+	return availableForks
 }
 
 // UnsupportedForkError is returned when a test requests a fork that isn't implemented.

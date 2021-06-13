@@ -1,6 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -13,13 +25,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/node"
-	"github.com/fafereum/go-fafereum/p2p"
-	"github.com/fafereum/go-fafereum/p2p/enode"
-	"github.com/fafereum/go-fafereum/p2p/simulations"
-	"github.com/fafereum/go-fafereum/p2p/simulations/adapters"
-	"github.com/fafereum/go-fafereum/rpc"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/simulations"
+	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
 )
 
 var adapterType = flag.String("adapter", "sim", `node adapter to use (one of "sim", "exec" or "docker")`)
@@ -30,15 +41,17 @@ func main() {
 	flag.Parse()
 
 	// set the log level to Trace
-	log.Root().Sfafandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 
 	// register a single ping-pong service
-	services := map[string]adapters.ServiceFunc{
-		"ping-pong": func(ctx *adapters.ServiceContext) (node.Service, error) {
-			return newPingPongService(ctx.Config.ID), nil
+	services := map[string]adapters.LifecycleConstructor{
+		"ping-pong": func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
+			pps := newPingPongService(ctx.Config.ID)
+			stack.RegisterProtocols(pps.Protocols())
+			return pps, nil
 		},
 	}
-	adapters.RegisterServices(services)
+	adapters.RegisterLifecycles(services)
 
 	// create the NodeAdapter
 	var adapter adapters.NodeAdapter
@@ -98,11 +111,7 @@ func (p *pingPongService) Protocols() []p2p.Protocol {
 	}}
 }
 
-func (p *pingPongService) APIs() []rpc.API {
-	return nil
-}
-
-func (p *pingPongService) Start(server *p2p.Server) error {
+func (p *pingPongService) Start() error {
 	p.log.Info("ping-pong service starting")
 	return nil
 }

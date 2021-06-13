@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 //+build go1.5
 
@@ -11,7 +9,7 @@ import (
 	"os"
 	"runtime/trace"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // StartGoTrace turns on tracing, writing to the given file.

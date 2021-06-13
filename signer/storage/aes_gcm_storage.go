@@ -1,19 +1,4 @@
-// Copyright 2018 The go-fafereum Authors
-// This file is part of go-fafereum.
-//
-// go-fafereum is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// go-fafereum is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with go-fafereum. If not, see <http://www.gnu.org/licenses/>.
-//
+
 
 package storage
 
@@ -26,7 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type storedCredential struct {
@@ -53,7 +38,7 @@ func NewAESEncryptedStorage(filename string, key []byte) *AESEncryptedStorage {
 	}
 }
 
-// Put stores a value by key. 0-length keys results in no-op
+// Put stores a value by key. 0-length keys results in noop.
 func (s *AESEncryptedStorage) Put(key, value string) {
 	if len(key) == 0 {
 		return
@@ -75,27 +60,41 @@ func (s *AESEncryptedStorage) Put(key, value string) {
 	}
 }
 
-// Get returns the previously stored value, or the empty string if it does not exist or key is of 0-length
-func (s *AESEncryptedStorage) Get(key string) string {
+// Get returns the previously stored value, or an error if it does not exist or
+// key is of 0-length.
+func (s *AESEncryptedStorage) Get(key string) (string, error) {
 	if len(key) == 0 {
-		return ""
+		return "", ErrZeroKey
 	}
 	data, err := s.readEncryptedStorage()
 	if err != nil {
 		log.Warn("Failed to read encrypted storage", "err", err, "file", s.filename)
-		return ""
+		return "", err
 	}
 	encrypted, exist := data[key]
 	if !exist {
 		log.Warn("Key does not exist", "key", key)
-		return ""
+		return "", ErrNotFound
 	}
 	entry, err := decrypt(s.key, encrypted.Iv, encrypted.CipherText, []byte(key))
 	if err != nil {
 		log.Warn("Failed to decrypt key", "key", key)
-		return ""
+		return "", err
 	}
-	return string(entry)
+	return string(entry), nil
+}
+
+// Del removes a key-value pair. If the key doesn't exist, the method is a noop.
+func (s *AESEncryptedStorage) Del(key string) {
+	data, err := s.readEncryptedStorage()
+	if err != nil {
+		log.Warn("Failed to read encrypted storage", "err", err, "file", s.filename)
+		return
+	}
+	delete(data, key)
+	if err = s.writeEncryptedStorage(data); err != nil {
+		log.Warn("Failed to write entry", "err", err)
+	}
 }
 
 // readEncryptedStorage reads the file with encrypted creds
@@ -138,11 +137,11 @@ func encrypt(key []byte, plaintext []byte, additionalData []byte) ([]byte, []byt
 		return nil, nil, err
 	}
 	aesgcm, err := cipher.NewGCM(block)
-	nonce := make([]byte, aesgcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+	if err != nil {
 		return nil, nil, err
 	}
-	if err != nil {
+	nonce := make([]byte, aesgcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, nil, err
 	}
 	ciphertext := aesgcm.Seal(nil, nonce, plaintext, additionalData)

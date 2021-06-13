@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package light
 
@@ -9,16 +7,21 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/state"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/trie"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/trie"
+)
+
+var (
+	sha3Nil = crypto.Keccak256Hash(nil)
 )
 
 func NewState(ctx context.Context, head *types.Header, odr OdrBackend) *state.StateDB {
-	state, _ := state.New(head.Root, NewStateDatabase(ctx, head, odr))
+	state, _ := state.New(head.Root, NewStateDatabase(ctx, head, odr), nil)
 	return state
 }
 
@@ -55,10 +58,11 @@ func (db *odrDatabase) CopyTrie(t state.Trie) state.Trie {
 }
 
 func (db *odrDatabase) ContractCode(addrHash, codeHash common.Hash) ([]byte, error) {
-	if codeHash == sha3_nil {
+	if codeHash == sha3Nil {
 		return nil, nil
 	}
-	if code, err := db.backend.Database().Get(codeHash[:]); err == nil {
+	code := rawdb.ReadCode(db.backend.Database(), codeHash)
+	if len(code) != 0 {
 		return code, nil
 	}
 	id := *db.id
@@ -129,7 +133,7 @@ func (t *odrTrie) GetKey(sha []byte) []byte {
 	return nil
 }
 
-func (t *odrTrie) Prove(key []byte, fromLevel uint, proofDb fafdb.Putter) error {
+func (t *odrTrie) Prove(key []byte, fromLevel uint, proofDb fafdb.KeyValueWriter) error {
 	return errors.New("not implemented, needs client/server interface split")
 }
 

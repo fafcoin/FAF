@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package node
 
@@ -14,15 +12,17 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fafereum/go-fafereum/accounts"
-	"github.com/fafereum/go-fafereum/accounts/keystore"
-	"github.com/fafereum/go-fafereum/accounts/usbwallet"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/p2p"
-	"github.com/fafereum/go-fafereum/p2p/enode"
-	"github.com/fafereum/go-fafereum/rpc"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/external"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/accounts/scwallet"
+	"github.com/ethereum/go-ethereum/accounts/usbwallet"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
@@ -38,7 +38,7 @@ const (
 // all registered services.
 type Config struct {
 	// Name sets the instance name of the node. It must not contain the / character and is
-	// used in the devp2p node identifier. The instance name of gfaf is "gfaf". If no
+	// used in the devp2p node identifier. The instance name of geth is "geth". If no
 	// value is specified, the basename of the current executable is used.
 	Name string `toml:"-"`
 
@@ -51,7 +51,7 @@ type Config struct {
 
 	// DataDir is the file system folder the node should use for any data storage
 	// requirements. The configured data directory will not be directly shared with
-	// registered services, instead those can use utility mfafods to create/access
+	// registered services, instead those can use utility methods to create/access
 	// databases or flat files. This enables ephemeral nodes which can fully reside
 	// in memory.
 	DataDir string
@@ -68,22 +68,31 @@ type Config struct {
 	// is created by New and destroyed when the node is stopped.
 	KeyStoreDir string `toml:",omitempty"`
 
+	// ExternalSigner specifies an external URI for a clef-type signer
+	ExternalSigner string `toml:",omitempty"`
+
 	// UseLightweightKDF lowers the memory and CPU requirements of the key store
 	// scrypt KDF at the expense of security.
 	UseLightweightKDF bool `toml:",omitempty"`
 
+	// InsecureUnlockAllowed allows user to unlock accounts in unsafe http environment.
+	InsecureUnlockAllowed bool `toml:",omitempty"`
+
 	// NoUSB disables hardware wallet monitoring and connectivity.
 	NoUSB bool `toml:",omitempty"`
+
+	// SmartCardDaemonPath is the path to the smartcard daemon's socket
+	SmartCardDaemonPath string `toml:",omitempty"`
 
 	// IPCPath is the requested location to place the IPC endpoint. If the path is
 	// a simple file name, it is placed inside the data directory (or on the root
 	// pipe path on Windows), whereas if it's a resolvable path name (absolute or
 	// relative), then that specific path is enforced. An empty path disables IPC.
-	IPCPath string `toml:",omitempty"`
+	IPCPath string
 
 	// HTTPHost is the host interface on which to start the HTTP RPC server. If this
 	// field is empty, no HTTP API endpoint will be started.
-	HTTPHost string `toml:",omitempty"`
+	HTTPHost string
 
 	// HTTPPort is the TCP port number on which to start the HTTP RPC server. The
 	// default zero value is/ valid and will pick a port number randomly (useful
@@ -107,7 +116,7 @@ type Config struct {
 	// HTTPModules is a list of API modules to expose via the HTTP RPC interface.
 	// If the module list is empty, all RPC API endpoints designated public will be
 	// exposed.
-	HTTPModules []string `toml:",omitempty"`
+	HTTPModules []string
 
 	// HTTPTimeouts allows for customization of the timeout values used by the HTTP RPC
 	// interface.
@@ -115,7 +124,7 @@ type Config struct {
 
 	// WSHost is the host interface on which to start the websocket RPC server. If
 	// this field is empty, no websocket API endpoint will be started.
-	WSHost string `toml:",omitempty"`
+	WSHost string
 
 	// WSPort is the TCP port number on which to start the websocket RPC server. The
 	// default zero value is/ valid and will pick a port number randomly (useful for
@@ -130,7 +139,7 @@ type Config struct {
 	// WSModules is a list of API modules to expose via the websocket RPC interface.
 	// If the module list is empty, all RPC API endpoints designated public will be
 	// exposed.
-	WSModules []string `toml:",omitempty"`
+	WSModules []string
 
 	// WSExposeAll exposes all API modules via the WebSocket RPC interface rather
 	// than just the public ones.
@@ -139,12 +148,26 @@ type Config struct {
 	// private APIs to untrusted users is a major security risk.
 	WSExposeAll bool `toml:",omitempty"`
 
+	// GraphQLCors is the Cross-Origin Resource Sharing header to send to requesting
+	// clients. Please be aware that CORS is a browser enforced security, it's fully
+	// useless for custom HTTP clients.
+	GraphQLCors []string `toml:",omitempty"`
+
+	// GraphQLVirtualHosts is the list of virtual hostnames which are allowed on incoming requests.
+	// This is by default {'localhost'}. Using this prevents attacks like
+	// DNS rebinding, which bypasses SOP by simply masquerading as being within the same
+	// origin. These attacks do not utilize CORS, since they are not cross-domain.
+	// By explicitly checking the Host-header, the server will not allow requests
+	// made against the server with a malicious host domain.
+	// Requests using ip address directly are not affected
+	GraphQLVirtualHosts []string `toml:",omitempty"`
+
 	// Logger is a custom logger to use with the p2p.Server.
 	Logger log.Logger `toml:",omitempty"`
 
 	staticNodesWarning     bool
 	trustedNodesWarning    bool
-	oldGfafResourceWarning bool
+	oldGethResourceWarning bool
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into
@@ -222,12 +245,18 @@ func DefaultWSEndpoint() string {
 	return config.WSEndpoint()
 }
 
+// ExtRPCEnabled returns the indicator whether node enables the external
+// RPC(http, ws or graphql).
+func (c *Config) ExtRPCEnabled() bool {
+	return c.HTTPHost != "" || c.WSHost != ""
+}
+
 // NodeName returns the devp2p node identifier.
 func (c *Config) NodeName() string {
 	name := c.name()
-	// Backwards compatibility: previous versions used title-cased "Gfaf", keep that.
-	if name == "gfaf" || name == "gfaf-testnet" {
-		name = "Gfaf"
+	// Backwards compatibility: previous versions used title-cased "Geth", keep that.
+	if name == "geth" || name == "geth-testnet" {
+		name = "Geth"
 	}
 	if c.UserIdent != "" {
 		name += "/" + c.UserIdent
@@ -251,8 +280,8 @@ func (c *Config) name() string {
 	return c.Name
 }
 
-// These resources are resolved differently for "gfaf" instances.
-var isOldGfafResource = map[string]bool{
+// These resources are resolved differently for "geth" instances.
+var isOldGethResource = map[string]bool{
 	"chaindata":          true,
 	"nodes":              true,
 	"nodekey":            true,
@@ -269,21 +298,19 @@ func (c *Config) ResolvePath(path string) string {
 		return ""
 	}
 	// Backwards-compatibility: ensure that data directory files created
-	// by gfaf 1.4 are used if they exist.
-	if warn, isOld := isOldGfafResource[path]; isOld {
+	// by geth 1.4 are used if they exist.
+	if warn, isOld := isOldGethResource[path]; isOld {
 		oldpath := ""
-		if c.name() == "gfaf" {
+		if c.name() == "geth" {
 			oldpath = filepath.Join(c.DataDir, path)
 		}
 		if oldpath != "" && common.FileExist(oldpath) {
 			if warn {
-				c.warnOnce(&c.oldGfafResourceWarning, "Using deprecated resource file %s, please move this file to the 'gfaf' subdirectory of datadir.", oldpath)
+				c.warnOnce(&c.oldGethResourceWarning, "Using deprecated resource file %s, please move this file to the 'geth' subdirectory of datadir.", oldpath)
 			}
 			return oldpath
 		}
 	}
-	//////fmt.Println("解析path")
-	////fmt.Println(filepath.Join(c.instanceDir(), path))
 	return filepath.Join(c.instanceDir(), path)
 }
 
@@ -346,13 +373,10 @@ func (c *Config) TrustedNodes() []*enode.Node {
 // file from within the data directory.
 func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 	// Short circuit if no node config is present
-	////fmt.Println(c.DataDir)
 	if c.DataDir == "" {
 		return nil
 	}
 	if _, err := os.Stat(path); err != nil {
-		////fmt.Println("执行到os")
-		//"quyum"//fmt.Println(err.Error())
 		return nil
 	}
 	c.warnOnce(w, "Found deprecated node list file %s, please use the TOML config file instead.", path)
@@ -369,15 +393,13 @@ func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 		if url == "" {
 			continue
 		}
-		node, err := enode.ParseV4(url)
+		node, err := enode.Parse(enode.ValidSchemes, url)
 		if err != nil {
 			log.Error(fmt.Sprintf("Node URL %s: %v\n", url, err))
 			continue
 		}
 		nodes = append(nodes, node)
 	}
-	////fmt.Println("解析静态链接库")
-	////fmt.Println(nodes)
 	return nodes
 }
 
@@ -414,7 +436,7 @@ func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
 	var ephemeral string
 	if keydir == "" {
 		// There is no datadir.
-		keydir, err = ioutil.TempDir("", "go-fafereum-keystore")
+		keydir, err = ioutil.TempDir("", "go-ethereum-keystore")
 		ephemeral = keydir
 	}
 
@@ -425,24 +447,52 @@ func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
 		return nil, "", err
 	}
 	// Assemble the account manager and supported backends
-	backends := []accounts.Backend{
-		keystore.NewKeyStore(keydir, scryptN, scryptP),
-	}
-	if !conf.NoUSB {
-		// Start a USB hub for Ledger hardware wallets
-		if ledgerhub, err := usbwallet.NewLedgerHub(); err != nil {
-			log.Warn(fmt.Sprintf("Failed to start Ledger hub, disabling: %v", err))
+	var backends []accounts.Backend
+	if len(conf.ExternalSigner) > 0 {
+		log.Info("Using external signer", "url", conf.ExternalSigner)
+		if extapi, err := external.NewExternalBackend(conf.ExternalSigner); err == nil {
+			backends = append(backends, extapi)
 		} else {
-			backends = append(backends, ledgerhub)
-		}
-		// Start a USB hub for Trezor hardware wallets
-		if trezorhub, err := usbwallet.NewTrezorHub(); err != nil {
-			log.Warn(fmt.Sprintf("Failed to start Trezor hub, disabling: %v", err))
-		} else {
-			backends = append(backends, trezorhub)
+			return nil, "", fmt.Errorf("error connecting to external signer: %v", err)
 		}
 	}
-	return accounts.NewManager(backends...), ephemeral, nil
+	if len(backends) == 0 {
+		// For now, we're using EITHER external signer OR local signers.
+		// If/when we implement some form of lockfile for USB and keystore wallets,
+		// we can have both, but it's very confusing for the user to see the same
+		// accounts in both externally and locally, plus very racey.
+		backends = append(backends, keystore.NewKeyStore(keydir, scryptN, scryptP))
+		if !conf.NoUSB {
+			// Start a USB hub for Ledger hardware wallets
+			if ledgerhub, err := usbwallet.NewLedgerHub(); err != nil {
+				log.Warn(fmt.Sprintf("Failed to start Ledger hub, disabling: %v", err))
+			} else {
+				backends = append(backends, ledgerhub)
+			}
+			// Start a USB hub for Trezor hardware wallets (HID version)
+			if trezorhub, err := usbwallet.NewTrezorHubWithHID(); err != nil {
+				log.Warn(fmt.Sprintf("Failed to start HID Trezor hub, disabling: %v", err))
+			} else {
+				backends = append(backends, trezorhub)
+			}
+			// Start a USB hub for Trezor hardware wallets (WebUSB version)
+			if trezorhub, err := usbwallet.NewTrezorHubWithWebUSB(); err != nil {
+				log.Warn(fmt.Sprintf("Failed to start WebUSB Trezor hub, disabling: %v", err))
+			} else {
+				backends = append(backends, trezorhub)
+			}
+		}
+		if len(conf.SmartCardDaemonPath) > 0 {
+			// Start a smart card hub
+			if schub, err := scwallet.NewHub(conf.SmartCardDaemonPath, scwallet.Scheme, keydir); err != nil {
+				log.Warn(fmt.Sprintf("Failed to start smart card hub, disabling: %v", err))
+			} else {
+				backends = append(backends, schub)
+			}
+		}
+	}
+
+	return accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: conf.InsecureUnlockAllowed}, backends...), ephemeral, nil
 }
 
 var warnLock sync.Mutex

@@ -1,6 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package log
 
@@ -28,8 +40,8 @@ type GlogHandler struct {
 	origin Handler // The origin handler this wraps
 
 	level     uint32 // Current log level, atomically accessible
-	override  uint32 // Flag whfafer overrides are used, atomically accessible
-	backtrace uint32 // Flag whfafer backtrace location is set
+	override  uint32 // Flag whether overrides are used, atomically accessible
+	backtrace uint32 // Flag whether backtrace location is set
 
 	patterns  []pattern       // Current list of patterns to override with
 	siteCache map[uintptr]Lvl // Cache of callsite pattern evaluations
@@ -45,8 +57,8 @@ func NewGlogHandler(h Handler) *GlogHandler {
 	}
 }
 
-// Sfafandler updates the handler to write records to the specified sub-handler.
-func (h *GlogHandler) Sfafandler(nh Handler) {
+// SetHandler updates the handler to write records to the specified sub-handler.
+func (h *GlogHandler) SetHandler(nh Handler) {
 	h.origin = nh
 }
 
@@ -167,7 +179,7 @@ func (h *GlogHandler) BacktraceAt(location string) error {
 // Log implements Handler.Log, filtering a log record through the global, local
 // and backtrace filters, finally emitting it if either allow it through.
 func (h *GlogHandler) Log(r *Record) error {
-	// If backtracing is requested, check whfafer this is the callsite
+	// If backtracing is requested, check whether this is the callsite
 	if atomic.LoadUint32(&h.backtrace) > 0 {
 		// Everything below here is slow. Although we could cache the call sites the
 		// same way as for vmodule, backtracing is so rare it's not worth the extra
@@ -195,7 +207,7 @@ func (h *GlogHandler) Log(r *Record) error {
 	}
 	// Check callsite cache for previously calculated log levels
 	h.lock.RLock()
-	lvl, ok := h.siteCache[r.Call.PC()]
+	lvl, ok := h.siteCache[r.Call.Frame().PC]
 	h.lock.RUnlock()
 
 	// If we didn't cache the callsite yet, calculate it
@@ -203,13 +215,13 @@ func (h *GlogHandler) Log(r *Record) error {
 		h.lock.Lock()
 		for _, rule := range h.patterns {
 			if rule.pattern.MatchString(fmt.Sprintf("%+s", r.Call)) {
-				h.siteCache[r.Call.PC()], lvl, ok = rule.level, rule.level, true
+				h.siteCache[r.Call.Frame().PC], lvl, ok = rule.level, rule.level, true
 				break
 			}
 		}
 		// If no rule matched, remember to drop log the next time
 		if !ok {
-			h.siteCache[r.Call.PC()] = 0
+			h.siteCache[r.Call.Frame().PC] = 0
 		}
 		h.lock.Unlock()
 	}

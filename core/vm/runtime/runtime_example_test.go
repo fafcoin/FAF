@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package runtime_test
@@ -8,16 +5,16 @@ package runtime_test
 import (
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/vm/runtime"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm/runtime"
 )
 
 func ExampleExecute() {
 	ret, _, err := runtime.Execute(common.Hex2Bytes("6060604052600a8060106000396000f360606040526008565b00"), nil, nil)
 	if err != nil {
-		//fmt.Println(err)
+		fmt.Println(err)
 	}
-	//fmt.Println(ret)
+	fmt.Println(ret)
 	// Output:
 	// [96 96 96 64 82 96 8 86 91 0]
 }

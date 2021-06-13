@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package discv5
 
@@ -16,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // In this test, nodes try to randomly resolve each other.
@@ -31,6 +29,7 @@ func TestSimRandomResolve(t *testing.T) {
 
 	// A new node joins every 10s.
 	launcher := time.NewTicker(10 * time.Second)
+	defer launcher.Stop()
 	go func() {
 		for range launcher.C {
 			net := sim.launchNode(false)
@@ -38,12 +37,11 @@ func TestSimRandomResolve(t *testing.T) {
 			if err := net.SetFallbackNodes([]*Node{bootnode.Self()}); err != nil {
 				panic(err)
 			}
-			fmt.Printf("launched @ %v: %x\n", time.Now(), net.Self().ID[:16])
+			t.Logf("launched @ %v: %x\n", time.Now(), net.Self().ID[:16])
 		}
 	}()
 
 	time.Sleep(3 * time.Hour)
-	launcher.Stop()
 	sim.shutdown()
 	sim.printStats()
 }
@@ -160,7 +158,7 @@ func TestSimTopicHierarchy(t *testing.T) {
 		for i, net := range nets {
 			//if i < 256 {
 			for _, topic := range testHierarchicalTopics(i)[:5] {
-				////fmt.Println("reg", topic)
+				//fmt.Println("reg", topic)
 				go net.RegisterTopic(topic, stop)
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -184,6 +182,7 @@ func randomResolves(t *testing.T, s *simulation, net *Network) {
 	}
 
 	timer := time.NewTimer(randtime())
+	defer timer.Stop()
 	for {
 		select {
 		case <-timer.C:
@@ -224,19 +223,19 @@ func (s *simulation) shutdown() {
 func (s *simulation) printStats() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	//fmt.Println("node counter:", s.nodectr)
-	//fmt.Println("alive nodes:", len(s.nodes))
+	fmt.Println("node counter:", s.nodectr)
+	fmt.Println("alive nodes:", len(s.nodes))
 
 	// for _, n := range s.nodes {
 	// 	fmt.Printf("%x\n", n.tab.self.ID[:8])
 	// 	transport := n.conn.(*simTransport)
-	// 	//fmt.Println("   joined:", transport.joinTime)
-	// 	//fmt.Println("   sends:", transport.hashctr)
-	// 	//fmt.Println("   table size:", n.tab.count)
+	// 	fmt.Println("   joined:", transport.joinTime)
+	// 	fmt.Println("   sends:", transport.hashctr)
+	// 	fmt.Println("   table size:", n.tab.count)
 	// }
 
 	/*for _, n := range s.nodes {
-		//fmt.Println()
+		fmt.Println()
 		fmt.Printf("*** Node %x\n", n.tab.self.ID[:8])
 		n.log.printLogs()
 	}*/
@@ -280,15 +279,6 @@ func (s *simulation) launchNode(log bool) *Network {
 	s.mu.Unlock()
 
 	return net
-}
-
-func (s *simulation) dropNode(id NodeID) {
-	s.mu.Lock()
-	n := s.nodes[id]
-	delete(s.nodes, id)
-	s.mu.Unlock()
-
-	n.Close()
 }
 
 type simTransport struct {
@@ -346,22 +336,6 @@ func (st *simTransport) sendPing(remote *Node, remoteAddr *net.UDPAddr, topics [
 	return hash
 }
 
-func (st *simTransport) sendPong(remote *Node, pingHash []byte) {
-	raddr := remote.addr()
-
-	st.sendPacket(remote.ID, ingressPacket{
-		remoteID:   st.sender,
-		remoteAddr: st.senderAddr,
-		hash:       st.nextHash(),
-		ev:         pongPacket,
-		data: &pong{
-			To:         rpcEndpoint{IP: raddr.IP, UDP: uint16(raddr.Port), TCP: 30303},
-			ReplyTok:   pingHash,
-			Expiration: uint64(time.Now().Unix() + int64(expiration)),
-		},
-	})
-}
-
 func (st *simTransport) sendFindnodeHash(remote *Node, target common.Hash) {
 	st.sendPacket(remote.ID, ingressPacket{
 		remoteID:   st.sender,
@@ -376,7 +350,7 @@ func (st *simTransport) sendFindnodeHash(remote *Node, target common.Hash) {
 }
 
 func (st *simTransport) sendTopicRegister(remote *Node, topics []Topic, idx int, pong []byte) {
-	////fmt.Println("send", topics, pong)
+	//fmt.Println("send", topics, pong)
 	st.sendPacket(remote.ID, ingressPacket{
 		remoteID:   st.sender,
 		remoteAddr: st.senderAddr,

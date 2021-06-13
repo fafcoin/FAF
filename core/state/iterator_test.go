@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package state
@@ -9,16 +6,17 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/fafdb"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/fafdb"
 )
 
 // Tests that the node iterator indeed walks over the entire database contents.
 func TestNodeIteratorCoverage(t *testing.T) {
 	// Create some arbitrary test state to iterate
 	db, root, _ := makeTestState()
+	db.TrieDB().Commit(root, false, nil)
 
-	state, err := New(root, db)
+	state, err := New(root, db, nil)
 	if err != nil {
 		t.Fatalf("failed to create state trie at %x: %v", root, err)
 	}
@@ -31,7 +29,10 @@ func TestNodeIteratorCoverage(t *testing.T) {
 	}
 	// Cross check the iterated hashes and the database/nodepool content
 	for hash := range hashes {
-		if _, err := db.TrieDB().Node(hash); err != nil {
+		if _, err = db.TrieDB().Node(hash); err != nil {
+			_, err = db.ContractCode(common.Hash{}, hash)
+		}
+		if err != nil {
 			t.Errorf("failed to retrieve reported node %x", hash)
 		}
 	}
@@ -40,7 +41,9 @@ func TestNodeIteratorCoverage(t *testing.T) {
 			t.Errorf("state entry not reported %x", hash)
 		}
 	}
-	for _, key := range db.TrieDB().DiskDB().(*fafdb.MemDatabase).Keys() {
+	it := db.TrieDB().DiskDB().(fafdb.Database).NewIterator(nil, nil)
+	for it.Next() {
+		key := it.Key()
 		if bytes.HasPrefix(key, []byte("secure-key-")) {
 			continue
 		}
@@ -48,4 +51,5 @@ func TestNodeIteratorCoverage(t *testing.T) {
 			t.Errorf("state entry not reported %x", key)
 		}
 	}
+	it.Release()
 }

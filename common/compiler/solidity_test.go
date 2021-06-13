@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package compiler
@@ -12,9 +9,10 @@ import (
 
 const (
 	testSource = `
+pragma solidity >0.0.0;
 contract test {
    /// @notice Will multiply ` + "`a`" + ` by 7.
-   function multiply(uint a) returns(uint d) {
+   function multiply(uint a) public returns(uint d) {
        return a * 7;
    }
 }
@@ -27,7 +25,7 @@ func skipWithoutSolc(t *testing.T) {
 	}
 }
 
-func TestCompiler(t *testing.T) {
+func TestSolidityCompiler(t *testing.T) {
 	skipWithoutSolc(t)
 
 	contracts, err := CompileSolidityString("", testSource)
@@ -55,7 +53,7 @@ func TestCompiler(t *testing.T) {
 	}
 }
 
-func TestCompileError(t *testing.T) {
+func TestSolidityCompileError(t *testing.T) {
 	skipWithoutSolc(t)
 
 	contracts, err := CompileSolidityString("", testSource[4:])

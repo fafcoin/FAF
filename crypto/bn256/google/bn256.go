@@ -1,6 +1,6 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 // Package bn256 implements a particular bilinear group.
 //
@@ -12,8 +12,9 @@
 //
 // This package specifically implements the Optimal Ate pairing over a 256-bit
 // Barreto-Naehrig curve as described in
-// http://cryptojedi.org/papers/dclxvi-20100714.pdf. Its output is compatible
-// with the implementation described in that paper.
+// http://cryptojedi.org/papers/dclxvi-20100714.pdf. Its output is not
+// compatible with the implementation described in that paper, as different
+// parameters are chosen.
 //
 // (This package previously claimed to operate at a 128-bit security level.
 // However, recent improvements in attacks mean that is no longer true. See

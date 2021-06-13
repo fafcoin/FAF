@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package state
@@ -8,23 +5,24 @@ package state
 import (
 	"bytes"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/rlp"
-	"github.com/fafereum/go-fafereum/trie"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // NewStateSync create a new state trie download scheduler.
-func NewStateSync(root common.Hash, database trie.DatabaseReader) *trie.Sync {
+func NewStateSync(root common.Hash, database fafdb.KeyValueReader, bloom *trie.SyncBloom) *trie.Sync {
 	var syncer *trie.Sync
-	callback := func(leaf []byte, parent common.Hash) error {
+	callback := func(path []byte, leaf []byte, parent common.Hash) error {
 		var obj Account
 		if err := rlp.Decode(bytes.NewReader(leaf), &obj); err != nil {
 			return err
 		}
-		syncer.AddSubTrie(obj.Root, 64, parent, nil)
-		syncer.AddRawEntry(common.BytesToHash(obj.CodeHash), 64, parent)
+		syncer.AddSubTrie(obj.Root, path, parent, nil)
+		syncer.AddCodeEntry(common.BytesToHash(obj.CodeHash), path, parent)
 		return nil
 	}
-	syncer = trie.NewSync(root, database, callback)
+	syncer = trie.NewSync(root, database, callback, bloom)
 	return syncer
 }

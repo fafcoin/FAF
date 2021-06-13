@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package core
@@ -8,10 +5,10 @@ package core
 import (
 	"math/big"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/consensus"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/core/vm"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 // ChainContext supports retrieving headers and consensus parameters from the
@@ -20,12 +17,12 @@ type ChainContext interface {
 	// Engine retrieves the chain's consensus engine.
 	Engine() consensus.Engine
 
-	// Gfafeader returns the hash corresponding to their hash.
-	Gfafeader(common.Hash, uint64) *types.Header
+	// GetHeader returns the hash corresponding to their hash.
+	GetHeader(common.Hash, uint64) *types.Header
 }
 
-// NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address) vm.Context {
+// NewEVMBlockContext creates a new context for use in the EVM.
+func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address) vm.BlockContext {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
 	var beneficiary common.Address
 	if author == nil {
@@ -33,47 +30,61 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	} else {
 		beneficiary = *author
 	}
-	return vm.Context{
+	return vm.BlockContext{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
-		Gfafash:     GfafashFn(header, chain),
-		Origin:      msg.From(),
+		GetHash:     GetHashFn(header, chain),
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
 		Difficulty:  new(big.Int).Set(header.Difficulty),
 		GasLimit:    header.GasLimit,
-		GasPrice:    new(big.Int).Set(msg.GasPrice()),
 	}
 }
 
-// GfafashFn returns a GfafashFunc which retrieves header hashes by number
-func GfafashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash {
-	var cache map[uint64]common.Hash
+// NewEVMTxContext creates a new transaction context for a single transaction.
+func NewEVMTxContext(msg Message) vm.TxContext {
+	return vm.TxContext{
+		Origin:   msg.From(),
+		GasPrice: new(big.Int).Set(msg.GasPrice()),
+	}
+}
+
+// GetHashFn returns a GetHashFunc which retrieves header hashes by number
+func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash {
+	// Cache will initially contain [refHash.parent],
+	// Then fill up with [refHash.p, refHash.pp, refHash.ppp, ...]
+	var cache []common.Hash
 
 	return func(n uint64) common.Hash {
 		// If there's no hash cache yet, make one
-		if cache == nil {
-			cache = map[uint64]common.Hash{
-				ref.Number.Uint64() - 1: ref.ParentHash,
+		if len(cache) == 0 {
+			cache = append(cache, ref.ParentHash)
+		}
+		if idx := ref.Number.Uint64() - n - 1; idx < uint64(len(cache)) {
+			return cache[idx]
+		}
+		// No luck in the cache, but we can start iterating from the last element we already know
+		lastKnownHash := cache[len(cache)-1]
+		lastKnownNumber := ref.Number.Uint64() - uint64(len(cache))
+
+		for {
+			header := chain.GetHeader(lastKnownHash, lastKnownNumber)
+			if header == nil {
+				break
 			}
-		}
-		// Try to fulfill the request from the cache
-		if hash, ok := cache[n]; ok {
-			return hash
-		}
-		// Not cached, iterate the blocks and cache the hashes
-		for header := chain.Gfafeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.Gfafeader(header.ParentHash, header.Number.Uint64()-1) {
-			cache[header.Number.Uint64()-1] = header.ParentHash
-			if n == header.Number.Uint64()-1 {
-				return header.ParentHash
+			cache = append(cache, header.ParentHash)
+			lastKnownHash = header.ParentHash
+			lastKnownNumber = header.Number.Uint64() - 1
+			if n == lastKnownNumber {
+				return lastKnownHash
 			}
 		}
 		return common.Hash{}
 	}
 }
 
-// CanTransfer checks whfafer there are enough funds in the address' account to make a transfer.
+// CanTransfer checks whether there are enough funds in the address' account to make a transfer.
 // This does not take the necessary gas in to account to make the transfer valid.
 func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 	return db.GetBalance(addr).Cmp(amount) >= 0

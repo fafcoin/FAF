@@ -1,21 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package miner
 
 import (
 	"testing"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // noopChainRetriever is an implementation of headerRetriever that always
 // returns nil for any requested headers.
 type noopChainRetriever struct{}
 
-func (r *noopChainRetriever) GfafeaderByNumber(number uint64) *types.Header {
+func (r *noopChainRetriever) GetHeaderByNumber(number uint64) *types.Header {
 	return nil
 }
 func (r *noopChainRetriever) GetBlockByNumber(number uint64) *types.Block {
@@ -31,7 +28,7 @@ func TestUnconfirmedInsertBounds(t *testing.T) {
 	for depth := uint64(0); depth < 2*uint64(limit); depth++ {
 		// Insert multiple blocks for the same level just to stress it
 		for i := 0; i < int(depth); i++ {
-			pool.Insert(depth, common.Hash([32]byte{byte(depth), byte(i)}))
+			pool.Insert(depth, [32]byte{byte(depth), byte(i)})
 		}
 		// Validate that no blocks below the depth allowance are left in
 		pool.blocks.Do(func(block interface{}) {
@@ -51,7 +48,7 @@ func TestUnconfirmedShifts(t *testing.T) {
 
 	pool := newUnconfirmedBlocks(new(noopChainRetriever), limit)
 	for depth := start; depth < start+uint64(limit); depth++ {
-		pool.Insert(depth, common.Hash([32]byte{byte(depth)}))
+		pool.Insert(depth, [32]byte{byte(depth)})
 	}
 	// Try to shift below the limit and ensure no blocks are dropped
 	pool.Shift(start + uint64(limit) - 1)

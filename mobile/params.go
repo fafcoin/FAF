@@ -1,28 +1,26 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains all the wrappers from the params package.
 
-package gfaf
+package geth
 
 import (
 	"encoding/json"
 
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/p2p/discv5"
-	"github.com/fafereum/go-fafereum/params"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/p2p/discv5"
+	"github.com/ethereum/go-ethereum/params"
 )
 
-// MainnetGenesis returns the JSON spec to use for the main fafereum network. It
+// MainnetGenesis returns the JSON spec to use for the main Ethereum network. It
 // is actually empty since that defaults to the hard coded binary genesis block.
 func MainnetGenesis() string {
 	return ""
 }
 
-// TestnetGenesis returns the JSON spec to use for the fafereum test network.
-func TestnetGenesis() string {
-	enc, err := json.Marshal(core.DefaultTestnetGenesisBlock())
+// RopstenGenesis returns the JSON spec to use for the Ropsten test network.
+func RopstenGenesis() string {
+	enc, err := json.Marshal(core.DefaultRopstenGenesisBlock())
 	if err != nil {
 		panic(err)
 	}
@@ -38,11 +36,20 @@ func RinkebyGenesis() string {
 	return string(enc)
 }
 
+// GoerliGenesis returns the JSON spec to use for the Goerli test network
+func GoerliGenesis() string {
+	enc, err := json.Marshal(core.DefaultGoerliGenesisBlock())
+	if err != nil {
+		panic(err)
+	}
+	return string(enc)
+}
+
 // FoundationBootnodes returns the enode URLs of the P2P bootstrap nodes operated
 // by the foundation running the V5 discovery protocol.
 func FoundationBootnodes() *Enodes {
-	nodes := &Enodes{nodes: make([]*discv5.Node, len(params.DiscoveryV5Bootnodes))}
-	for i, url := range params.DiscoveryV5Bootnodes {
+	nodes := &Enodes{nodes: make([]*discv5.Node, len(params.MainnetBootnodes))}
+	for i, url := range params.MainnetBootnodes {
 		nodes.nodes[i] = discv5.MustParseNode(url)
 	}
 	return nodes

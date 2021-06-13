@@ -1,6 +1,8 @@
+
+
 package discv5
 
-import "github.com/fafereum/go-fafereum/metrics"
+import "github.com/ethereum/go-ethereum/metrics"
 
 var (
 	ingressTrafficMeter = metrics.NewRegisteredMeter("discv5/InboundTraffic", nil)

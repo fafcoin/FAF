@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package event_test
 
@@ -8,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/fafereum/go-fafereum/event"
+	"github.com/ethereum/go-ethereum/event"
 )
 
 // This example demonstrates how SubscriptionScope can be used to control the lifetime of
@@ -50,8 +48,8 @@ func (s *App) Calc(op byte, a, b int) int {
 	}
 }
 
-// The app's SubscribeResults mfafod starts sending calculation results to the given
-// channel. Subscriptions created through this mfafod are tied to the lifetime of the App
+// The app's SubscribeResults method starts sending calculation results to the given
+// channel. Subscriptions created through this method are tied to the lifetime of the App
 // because they are registered in the scope.
 func (s *App) SubscribeResults(op byte, ch chan<- int) event.Subscription {
 	switch op {
@@ -84,15 +82,15 @@ func ExampleSubscriptionScope() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer //fmt.Println("subscriber exited")
+		defer fmt.Println("subscriber exited")
 		defer divsub.Unsubscribe()
 		defer mulsub.Unsubscribe()
 		for {
 			select {
 			case result := <-divs:
-				//fmt.Println("division happened:", result)
+				fmt.Println("division happened:", result)
 			case result := <-muls:
-				//fmt.Println("multiplication happened:", result)
+				fmt.Println("multiplication happened:", result)
 			case <-divsub.Err():
 				return
 			case <-mulsub.Err():

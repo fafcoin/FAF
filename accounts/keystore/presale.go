@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package keystore
 
@@ -13,8 +11,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/accounts"
-	"github.com/fafereum/go-fafereum/crypto"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -40,7 +38,7 @@ func importPreSaleKey(keyStore keyStore, keyJSON []byte, password string) (accou
 func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error) {
 	preSaleKeyStruct := struct {
 		EncSeed string
-		fafAddr string
+		EthAddr string
 		Email   string
 		BtcAddr string
 	}{}
@@ -58,9 +56,9 @@ func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error
 	iv := encSeedBytes[:16]
 	cipherText := encSeedBytes[16:]
 	/*
-		See https://github.com/fafereum/pyfafsaletool
+		See https://github.com/ethereum/pyethsaletool
 
-		pyfafsaletool generates the encryption key from password by
+		pyethsaletool generates the encryption key from password by
 		2000 rounds of PBKDF2 with HMAC-SHA-256 using password as salt (:().
 		16 byte key length within PBKDF2 and resulting key is used as AES key
 	*/
@@ -70,8 +68,8 @@ func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error
 	if err != nil {
 		return nil, err
 	}
-	fafPriv := crypto.Keccak256(plainText)
-	ecKey := crypto.ToECDSAUnsafe(fafPriv)
+	ethPriv := crypto.Keccak256(plainText)
+	ecKey := crypto.ToECDSAUnsafe(ethPriv)
 
 	key = &Key{
 		Id:         nil,
@@ -79,7 +77,7 @@ func decryptPreSaleKey(fileContent []byte, password string) (key *Key, err error
 		PrivateKey: ecKey,
 	}
 	derivedAddr := hex.EncodeToString(key.Address.Bytes()) // needed because .Hex() gives leading "0x"
-	expectedAddr := preSaleKeyStruct.fafAddr
+	expectedAddr := preSaleKeyStruct.EthAddr
 	if derivedAddr != expectedAddr {
 		err = fmt.Errorf("decrypted addr '%s' not equal to expected addr '%s'", derivedAddr, expectedAddr)
 	}

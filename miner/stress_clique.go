@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // +build none
 
@@ -16,23 +14,24 @@ import (
 	"os"
 	"time"
 
-	"github.com/fafereum/go-fafereum/accounts/keystore"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/common/fdlimit"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/faf"
-	"github.com/fafereum/go-fafereum/faf/downloader"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/node"
-	"github.com/fafereum/go-fafereum/p2p"
-	"github.com/fafereum/go-fafereum/p2p/enode"
-	"github.com/fafereum/go-fafereum/params"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/fdlimit"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 func main() {
-	log.Root().Sfafandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	fdlimit.Raise(2048)
 
 	// Generate a batch of accounts to seal and fund with
@@ -48,30 +47,31 @@ func main() {
 	genesis := makeGenesis(faucets, sealers)
 
 	var (
-		nodes  []*node.Node
+		nodes  []*eth.Ethereum
 		enodes []*enode.Node
 	)
+
 	for _, sealer := range sealers {
 		// Start the node and wait until it's up
-		node, err := makeSealer(genesis)
+		stack, ethBackend, err := makeSealer(genesis)
 		if err != nil {
 			panic(err)
 		}
-		defer node.Stop()
+		defer stack.Close()
 
-		for node.Server().NodeInfo().Ports.Listener == 0 {
+		for stack.Server().NodeInfo().Ports.Listener == 0 {
 			time.Sleep(250 * time.Millisecond)
 		}
-		// Connect the node to al the previous ones
+		// Connect the node to all the previous ones
 		for _, n := range enodes {
-			node.Server().AddPeer(n)
+			stack.Server().AddPeer(n)
 		}
-		// Start tracking the node and it's enode
-		nodes = append(nodes, node)
-		enodes = append(enodes, node.Server().Self())
+		// Start tracking the node and its enode
+		nodes = append(nodes, ethBackend)
+		enodes = append(enodes, stack.Server().Self())
 
 		// Inject the signer key and start sealing with it
-		store := node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+		store := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 		signer, err := store.ImportECDSA(sealer, "")
 		if err != nil {
 			panic(err)
@@ -80,15 +80,11 @@ func main() {
 			panic(err)
 		}
 	}
-	// Iterate over all the nodes and start signing with them
-	time.Sleep(3 * time.Second)
 
+	// Iterate over all the nodes and start signing on them
+	time.Sleep(3 * time.Second)
 	for _, node := range nodes {
-		var fafereum *faf.fafereum
-		if err := node.Service(&fafereum); err != nil {
-			panic(err)
-		}
-		if err := fafereum.StartMining(1); err != nil {
+		if err := node.StartMining(1); err != nil {
 			panic(err)
 		}
 	}
@@ -97,25 +93,22 @@ func main() {
 	// Start injecting transactions from the faucet like crazy
 	nonces := make([]uint64, len(faucets))
 	for {
+		// Pick a random signer node
 		index := rand.Intn(len(faucets))
+		backend := nodes[index%len(nodes)]
 
-		// Fetch the accessor for the relevant signer
-		var fafereum *faf.fafereum
-		if err := nodes[index%len(nodes)].Service(&fafereum); err != nil {
-			panic(err)
-		}
 		// Create a self transaction and inject into the pool
 		tx, err := types.SignTx(types.NewTransaction(nonces[index], crypto.PubkeyToAddress(faucets[index].PublicKey), new(big.Int), 21000, big.NewInt(100000000000), nil), types.HomesteadSigner{}, faucets[index])
 		if err != nil {
 			panic(err)
 		}
-		if err := fafereum.TxPool().AddLocal(tx); err != nil {
+		if err := backend.TxPool().AddLocal(tx); err != nil {
 			panic(err)
 		}
 		nonces[index]++
 
 		// Wait if we're too saturated
-		if pend, _ := fafereum.TxPool().Stats(); pend > 2048 {
+		if pend, _ := backend.TxPool().Stats(); pend > 2048 {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -158,12 +151,12 @@ func makeGenesis(faucets []*ecdsa.PrivateKey, sealers []*ecdsa.PrivateKey) *core
 	return genesis
 }
 
-func makeSealer(genesis *core.Genesis) (*node.Node, error) {
-	// Define the basic configurations for the fafereum node
+func makeSealer(genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
+	// Define the basic configurations for the Ethereum node
 	datadir, _ := ioutil.TempDir("", "")
 
 	config := &node.Config{
-		Name:    "gfaf",
+		Name:    "geth",
 		Version: params.Version,
 		DataDir: datadir,
 		P2P: p2p.Config{
@@ -173,28 +166,31 @@ func makeSealer(genesis *core.Genesis) (*node.Node, error) {
 		},
 		NoUSB: true,
 	}
-	// Start the node and configure a full fafereum node on it
+	// Start the node and configure a full Ethereum node on it
 	stack, err := node.New(config)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		return faf.New(ctx, &faf.Config{
-			Genesis:         genesis,
-			NetworkId:       genesis.Config.ChainID.Uint64(),
-			SyncMode:        downloader.FullSync,
-			DatabaseCache:   256,
-			DatabaseHandles: 256,
-			TxPool:          core.DefaultTxPoolConfig,
-			GPO:             faf.DefaultConfig.GPO,
-			MinerGasFloor:   genesis.GasLimit * 9 / 10,
-			MinerGasCeil:    genesis.GasLimit * 11 / 10,
-			MinerGasPrice:   big.NewInt(1),
-			MinerRecommit:   time.Second,
-		})
-	}); err != nil {
-		return nil, err
+	// Create and register the backend
+	ethBackend, err := eth.New(stack, &eth.Config{
+		Genesis:         genesis,
+		NetworkId:       genesis.Config.ChainID.Uint64(),
+		SyncMode:        downloader.FullSync,
+		DatabaseCache:   256,
+		DatabaseHandles: 256,
+		TxPool:          core.DefaultTxPoolConfig,
+		GPO:             eth.DefaultConfig.GPO,
+		Miner: miner.Config{
+			GasFloor: genesis.GasLimit * 9 / 10,
+			GasCeil:  genesis.GasLimit * 11 / 10,
+			GasPrice: big.NewInt(1),
+			Recommit: time.Second,
+		},
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	// Start the node and return if successful
-	return stack, stack.Start()
+
+	err = stack.Start()
+	return stack, ethBackend, err
 }

@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 // +build none
@@ -18,7 +15,7 @@ AUTHORS file. The author names are mapped and deduplicated using the
 address for each author. See git-shortlog(1) for an explanation of the
 .mailmap format.
 
-Please review the resulting diff to check whfafer the correct
+Please review the resulting diff to check whether the correct
 copyright assignments are performed.
 */
 
@@ -51,18 +48,22 @@ var (
 	skipPrefixes = []string{
 		// boring stuff
 		"vendor/", "tests/testdata/", "build/",
+
 		// don't relicense vendored sources
 		"cmd/internal/browser",
-		"consensus/fafash/xor.go",
+		"common/bitutil/bitutil",
+		"common/prque/",
+		"consensus/ethash/xor.go",
 		"crypto/bn256/",
 		"crypto/ecies/",
-		"crypto/secp256k1/curve.go",
-		"crypto/sha3/",
+		"graphql/graphiql.go",
 		"internal/jsre/deps",
 		"log/",
-		"common/bitutil/bitutil",
-		// don't license generated files
-		"contracts/chequebook/contract/code.go",
+		"metrics/",
+		"signer/rules/deps",
+
+		// skip special licenses
+		"crypto/secp256k1", // Relicensed to BSD-3 via https://github.com/ethereum/go-ethereum/pull/17225
 	}
 
 	// paths with this prefix are licensed as GPL. all other files are LGPL.
@@ -73,13 +74,13 @@ var (
 	licenseCommentRE = regexp.MustCompile(`^//\s*(Copyright|This file is part of).*?\n(?://.*?\n)*\n*`)
 
 	// this text appears at the start of AUTHORS
-	authorsFileHeader = "# This is the official list of go-fafereum authors for copyright purposes.\n\n"
+	authorsFileHeader = "# This is the official list of go-ethereum authors for copyright purposes.\n\n"
 )
 
 // this template generates the license comment.
 // its input is an info structure.
 var licenseT = template.Must(template.New("").Parse(`
-// Copyright {{.Year}} The go-fafereum Authors
+// Copyright {{.Year}} The go-ethereum Authors
 // This file is part of {{.Whole false}}.
 //
 // {{.Whole true}} is free software: you can redistribute it and/or modify
@@ -118,12 +119,12 @@ func (i info) ShortLicense() string {
 
 func (i info) Whole(startOfSentence bool) string {
 	if i.gpl() {
-		return "go-fafereum"
+		return "go-ethereum"
 	}
 	if startOfSentence {
-		return "The go-fafereum library"
+		return "The go-ethereum library"
 	}
-	return "the go-fafereum library"
+	return "the go-ethereum library"
 }
 
 func (i info) gpl() bool {
@@ -134,6 +135,13 @@ func (i info) gpl() bool {
 	}
 	return false
 }
+
+// authors implements the sort.Interface for strings in case-insensitive mode.
+type authors []string
+
+func (as authors) Len() int           { return len(as) }
+func (as authors) Less(i, j int) bool { return strings.ToLower(as[i]) < strings.ToLower(as[j]) }
+func (as authors) Swap(i, j int)      { as[i], as[j] = as[j], as[i] }
 
 func main() {
 	var (
@@ -253,31 +261,36 @@ func mailmapLookup(authors []string) []string {
 }
 
 func writeAuthors(files []string) {
-	merge := make(map[string]bool)
-	// Add authors that Git reports as contributorxs.
+	var (
+		dedup = make(map[string]bool)
+		list  []string
+	)
+	// Add authors that Git reports as contributors.
 	// This is the primary source of author information.
 	for _, a := range gitAuthors(files) {
-		merge[a] = true
+		if la := strings.ToLower(a); !dedup[la] {
+			list = append(list, a)
+			dedup[la] = true
+		}
 	}
 	// Add existing authors from the file. This should ensure that we
 	// never lose authors, even if Git stops listing them. We can also
 	// add authors manually this way.
 	for _, a := range readAuthors() {
-		merge[a] = true
+		if la := strings.ToLower(a); !dedup[la] {
+			list = append(list, a)
+			dedup[la] = true
+		}
 	}
 	// Write sorted list of authors back to the file.
-	var result []string
-	for a := range merge {
-		result = append(result, a)
-	}
-	sort.Strings(result)
+	sort.Sort(authors(list))
 	content := new(bytes.Buffer)
 	content.WriteString(authorsFileHeader)
-	for _, a := range result {
+	for _, a := range list {
 		content.WriteString(a)
 		content.WriteString("\n")
 	}
-	//fmt.Println("writing AUTHORS")
+	fmt.Println("writing AUTHORS")
 	if err := ioutil.WriteFile("AUTHORS", content.Bytes(), 0644); err != nil {
 		log.Fatalln(err)
 	}
@@ -348,7 +361,7 @@ func writeLicenses(infos <-chan *info) {
 func writeLicense(info *info) {
 	fi, err := os.Stat(info.file)
 	if os.IsNotExist(err) {
-		//fmt.Println("skipping (does not exist)", info.file)
+		fmt.Println("skipping (does not exist)", info.file)
 		return
 	}
 	if err != nil {
@@ -369,10 +382,10 @@ func writeLicense(info *info) {
 	}
 	// Write it to the file.
 	if bytes.Equal(content, buf.Bytes()) {
-		//fmt.Println("skipping (no changes)", info.file)
+		fmt.Println("skipping (no changes)", info.file)
 		return
 	}
-	//fmt.Println("writing", info.ShortLicense(), info.file)
+	fmt.Println("writing", info.ShortLicense(), info.file)
 	if err := ioutil.WriteFile(info.file, buf.Bytes(), fi.Mode()); err != nil {
 		log.Fatalf("error writing %s: %v", info.file, err)
 	}

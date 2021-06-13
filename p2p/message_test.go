@@ -1,16 +1,12 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package p2p
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 )
@@ -128,13 +124,4 @@ func TestEOFSignal(t *testing.T) {
 		t.Error("unexpected EOF signal")
 	default:
 	}
-}
-
-func unhex(str string) []byte {
-	r := strings.NewReplacer("\t", "", " ", "", "\n", "")
-	b, err := hex.DecodeString(r.Replace(str))
-	if err != nil {
-		panic(fmt.Sprintf("invalid hex string: %q", str))
-	}
-	return b
 }

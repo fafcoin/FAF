@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package event
 
@@ -16,7 +14,7 @@ var errBadChannel = errors.New("event: Subscribe argument does not have sendable
 // Values sent to a Feed are delivered to all subscribed channels simultaneously.
 //
 // Feeds can only be used with a single type. The type is determined by the first Send or
-// Subscribe operation. Subsequent calls to these mfafods panic if the type does not
+// Subscribe operation. Subsequent calls to these methods panic if the type does not
 // match.
 //
 // The zero value is ready to use.
@@ -27,10 +25,9 @@ type Feed struct {
 	sendCases caseList         // the active set of select cases used by Send
 
 	// The inbox holds newly subscribed channels until they are added to sendCases.
-	mu     sync.Mutex
-	inbox  caseList
-	etype  reflect.Type
-	closed bool
+	mu    sync.Mutex
+	inbox caseList
+	etype reflect.Type
 }
 
 // This is the index of the first actual subscription channel in sendCases.
@@ -127,6 +124,7 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 
 	if !f.typecheck(rvalue.Type()) {
 		f.sendLock <- struct{}{}
+		f.mu.Unlock()
 		panic(feedTypeError{op: "Send", got: rvalue.Type(), want: f.etype})
 	}
 	f.mu.Unlock()

@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package console
@@ -15,12 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/consensus/fafash"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/faf"
-	"github.com/fafereum/go-fafereum/internal/jsre"
-	"github.com/fafereum/go-fafereum/node"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/console/prompt"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/internal/jsre"
+	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/node"
 )
 
 const (
@@ -55,16 +54,16 @@ func (p *hookedPrompter) PromptPassword(prompt string) (string, error) {
 func (p *hookedPrompter) PromptConfirm(prompt string) (bool, error) {
 	return false, errors.New("not implemented")
 }
-func (p *hookedPrompter) Sfafistory(history []string)              {}
-func (p *hookedPrompter) AppendHistory(command string)             {}
-func (p *hookedPrompter) ClearHistory()                            {}
-func (p *hookedPrompter) SetWordCompleter(completer WordCompleter) {}
+func (p *hookedPrompter) SetHistory(history []string)                     {}
+func (p *hookedPrompter) AppendHistory(command string)                    {}
+func (p *hookedPrompter) ClearHistory()                                   {}
+func (p *hookedPrompter) SetWordCompleter(completer prompt.WordCompleter) {}
 
 // tester is a console test environment for the console tests to operate on.
 type tester struct {
 	workspace string
 	stack     *node.Node
-	fafereum  *faf.fafereum
+	ethereum  *eth.Ethereum
 	console   *Console
 	input     *hookedPrompter
 	output    *bytes.Buffer
@@ -72,30 +71,33 @@ type tester struct {
 
 // newTester creates a test environment based on which the console can operate.
 // Please ensure you call Close() on the returned tester to avoid leaks.
-func newTester(t *testing.T, confOverride func(*faf.Config)) *tester {
+func newTester(t *testing.T, confOverride func(*eth.Config)) *tester {
 	// Create a temporary storage for the node keys and initialize it
 	workspace, err := ioutil.TempDir("", "console-tester-")
 	if err != nil {
 		t.Fatalf("failed to create temporary keystore: %v", err)
 	}
 
-	// Create a networkless protocol stack and start an fafereum service within
+	// Create a networkless protocol stack and start an Ethereum service within
 	stack, err := node.New(&node.Config{DataDir: workspace, UseLightweightKDF: true, Name: testInstance})
 	if err != nil {
 		t.Fatalf("failed to create node: %v", err)
 	}
-	fafConf := &faf.Config{
-		Genesis:   core.DeveloperGenesisBlock(15, common.Address{}),
-		faferbase: common.HexToAddress(testAddress),
-		fafash: fafash.Config{
-			PowMode: fafash.ModeTest,
+	ethConf := &eth.Config{
+		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
+		Miner: miner.Config{
+			Etherbase: common.HexToAddress(testAddress),
+		},
+		Ethash: ethash.Config{
+			PowMode: ethash.ModeTest,
 		},
 	}
 	if confOverride != nil {
-		confOverride(fafConf)
+		confOverride(ethConf)
 	}
-	if err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) { return faf.New(ctx, fafConf) }); err != nil {
-		t.Fatalf("failed to register fafereum protocol: %v", err)
+	ethBackend, err := eth.New(stack, ethConf)
+	if err != nil {
+		t.Fatalf("failed to register Ethereum protocol: %v", err)
 	}
 	// Start the node and assemble the JavaScript console around it
 	if err = stack.Start(); err != nil {
@@ -120,13 +122,10 @@ func newTester(t *testing.T, confOverride func(*faf.Config)) *tester {
 		t.Fatalf("failed to create JavaScript console: %v", err)
 	}
 	// Create the final tester and return
-	var fafereum *faf.fafereum
-	stack.Service(&fafereum)
-
 	return &tester{
 		workspace: workspace,
 		stack:     stack,
-		fafereum:  fafereum,
+		ethereum:  ethBackend,
 		console:   console,
 		input:     prompter,
 		output:    printer,
@@ -138,8 +137,8 @@ func (env *tester) Close(t *testing.T) {
 	if err := env.console.Stop(false); err != nil {
 		t.Errorf("failed to stop embedded console: %v", err)
 	}
-	if err := env.stack.Stop(); err != nil {
-		t.Errorf("failed to stop embedded node: %v", err)
+	if err := env.stack.Close(); err != nil {
+		t.Errorf("failed to tear down embedded node: %v", err)
 	}
 	os.RemoveAll(env.workspace)
 }
@@ -275,7 +274,7 @@ func TestPrettyError(t *testing.T) {
 	defer tester.Close(t)
 	tester.console.Evaluate("throw 'hello'")
 
-	want := jsre.ErrorColor("hello") + "\n"
+	want := jsre.ErrorColor("hello") + "\n\tat <eval>:1:7(1)\n\n"
 	if output := tester.output.String(); output != want {
 		t.Fatalf("pretty error mismatch: have %s, want %s", output, want)
 	}

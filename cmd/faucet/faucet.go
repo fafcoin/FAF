@@ -1,9 +1,20 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
-
-// faucet is a fafer faucet backed by a light client.
+// faucet is a Ether faucet backed by a light client.
 package main
 
 //go:generate go-bindata -nometadata -o website.go faucet.html
@@ -30,36 +41,37 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fafereum/go-fafereum/accounts"
-	"github.com/fafereum/go-fafereum/accounts/keystore"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/faf"
-	"github.com/fafereum/go-fafereum/faf/downloader"
-	"github.com/fafereum/go-fafereum/fafclient"
-	"github.com/fafereum/go-fafereum/fafstats"
-	"github.com/fafereum/go-fafereum/les"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/node"
-	"github.com/fafereum/go-fafereum/p2p"
-	"github.com/fafereum/go-fafereum/p2p/discv5"
-	"github.com/fafereum/go-fafereum/p2p/enode"
-	"github.com/fafereum/go-fafereum/p2p/nat"
-	"github.com/fafereum/go-fafereum/params"
-	"golang.org/x/net/websocket"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/fafclient"
+	"github.com/ethereum/go-ethereum/fafstats"
+	"github.com/ethereum/go-ethereum/les"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/discv5"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/gorilla/websocket"
 )
 
 var (
 	genesisFlag = flag.String("genesis", "", "Genesis json file to seed the chain with")
 	apiPortFlag = flag.Int("apiport", 8080, "Listener port for the HTTP API connection")
-	fafPortFlag = flag.Int("fafport", 30303, "Listener port for the devp2p connection")
+	ethPortFlag = flag.Int("ethport", 30303, "Listener port for the devp2p connection")
 	bootFlag    = flag.String("bootnodes", "", "Comma separated bootnode enode URLs to seed with")
-	netFlag     = flag.Uint64("network", 0, "Network ID to use for the fafereum protocol")
-	statsFlag   = flag.String("fafstats", "", "fafstats network monitoring auth string")
+	netFlag     = flag.Uint64("network", 0, "Network ID to use for the Ethereum protocol")
+	statsFlag   = flag.String("ethstats", "", "Ethstats network monitoring auth string")
 
 	netnameFlag = flag.String("faucet.name", "", "Network name to assign to the faucet")
-	payoutFlag  = flag.Int("faucet.amount", 1, "Number of fafers to pay out per user request")
+	payoutFlag  = flag.Int("faucet.amount", 1, "Number of Ethers to pay out per user request")
 	minutesFlag = flag.Int("faucet.minutes", 1440, "Number of minutes to wait between funding rounds")
 	tiersFlag   = flag.Int("faucet.tiers", 3, "Number of funding tiers to enable (x3 time, x2.5 funds)")
 
@@ -70,17 +82,22 @@ var (
 	captchaSecret = flag.String("captcha.secret", "", "Recaptcha secret key to authenticate server side")
 
 	noauthFlag = flag.Bool("noauth", false, "Enables funding requests without authentication")
-	logFlag    = flag.Int("loglevel", 3, "Log level to use for fafereum and the faucet")
+	logFlag    = flag.Int("loglevel", 3, "Log level to use for Ethereum and the faucet")
 )
 
 var (
-	fafer = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	ether = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+)
+
+var (
+	gitCommit = "" // Git SHA1 commit hash of the release (set via linker flags)
+	gitDate   = "" // Git commit date YYYYMMDD of the release (set via linker flags)
 )
 
 func main() {
 	// Parse the flags and set up the logger to print everything requested
 	flag.Parse()
-	log.Root().Sfafandler(log.LvlFilterHandler(log.Lvl(*logFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 
 	// Construct the payout tiers
 	amounts := make([]string, *tiersFlag)
@@ -88,7 +105,7 @@ func main() {
 	for i := 0; i < *tiersFlag; i++ {
 		// Calculate the amount for the next tier and format it
 		amount := float64(*payoutFlag) * math.Pow(2.5, float64(i))
-		amounts[i] = fmt.Sprintf("%s fafers", strconv.FormatFloat(amount, 'f', -1, 64))
+		amounts[i] = fmt.Sprintf("%s Ethers", strconv.FormatFloat(amount, 'f', -1, 64))
 		if amount == 1 {
 			amounts[i] = strings.TrimSuffix(amounts[i], "s")
 		}
@@ -146,7 +163,6 @@ func main() {
 	if blob, err = ioutil.ReadFile(*accPassFlag); err != nil {
 		log.Crit("Failed to read account password contents", "file", *accPassFlag, "err", err)
 	}
-	// Delete trailing newline in password
 	pass := strings.TrimSuffix(string(blob), "\n")
 
 	ks := keystore.NewKeyStore(filepath.Join(os.Getenv("HOME"), ".faucet", "keys"), keystore.StandardScryptN, keystore.StandardScryptP)
@@ -154,13 +170,14 @@ func main() {
 		log.Crit("Failed to read account key contents", "file", *accJSONFlag, "err", err)
 	}
 	acc, err := ks.Import(blob, pass, pass)
-	if err != nil {
+	if err != nil && err != keystore.ErrAccountAlreadyExists {
 		log.Crit("Failed to import faucet signer account", "err", err)
 	}
-	ks.Unlock(acc, pass)
-
+	if err := ks.Unlock(acc, pass); err != nil {
+		log.Crit("Failed to unlock faucet signer account", "err", err)
+	}
 	// Assemble and start the faucet light service
-	faucet, err := newFaucet(genesis, *fafPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes())
+	faucet, err := newFaucet(genesis, *ethPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes())
 	if err != nil {
 		log.Crit("Failed to start faucet", "err", err)
 	}
@@ -174,16 +191,16 @@ func main() {
 // request represents an accepted funding request.
 type request struct {
 	Avatar  string             `json:"avatar"`  // Avatar URL to make the UI nicer
-	Account common.Address     `json:"account"` // fafereum address being funded
+	Account common.Address     `json:"account"` // Ethereum address being funded
 	Time    time.Time          `json:"time"`    // Timestamp when the request was accepted
 	Tx      *types.Transaction `json:"tx"`      // Transaction funding the account
 }
 
-// faucet represents a crypto faucet backed by an fafereum light client.
+// faucet represents a crypto faucet backed by an Ethereum light client.
 type faucet struct {
 	config *params.ChainConfig // Chain configurations for signing
-	stack  *node.Node          // fafereum protocol stack
-	client *fafclient.Client   // Client connection to the fafereum chain
+	stack  *node.Node          // Ethereum protocol stack
+	client *fafclient.Client   // Client connection to the Ethereum chain
 	index  []byte              // Index page to serve up on the web
 
 	keystore *keystore.KeyStore // Keystore containing the single signer
@@ -204,8 +221,8 @@ type faucet struct {
 func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network uint64, stats string, ks *keystore.KeyStore, index []byte) (*faucet, error) {
 	// Assemble the raw devp2p protocol stack
 	stack, err := node.New(&node.Config{
-		Name:    "gfaf",
-		Version: params.VersionWithMeta,
+		Name:    "geth",
+		Version: params.VersionWithCommit(gitCommit, gitDate),
 		DataDir: filepath.Join(os.Getenv("HOME"), ".faucet"),
 		P2P: p2p.Config{
 			NAT:              nat.Any(),
@@ -219,23 +236,21 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 	if err != nil {
 		return nil, err
 	}
-	// Assemble the fafereum light client protocol
-	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		cfg := faf.DefaultConfig
-		cfg.SyncMode = downloader.LightSync
-		cfg.NetworkId = network
-		cfg.Genesis = genesis
-		return les.New(ctx, &cfg)
-	}); err != nil {
-		return nil, err
+
+	// Assemble the Ethereum light client protocol
+	cfg := eth.DefaultConfig
+	cfg.SyncMode = downloader.LightSync
+	cfg.NetworkId = network
+	cfg.Genesis = genesis
+	utils.SetDNSDiscoveryDefaults(&cfg, genesis.ToBlock(nil).Hash())
+	lesBackend, err := les.New(stack, &cfg)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to register the Ethereum service: %w", err)
 	}
-	// Assemble the fafstats monitoring and reporting service'
+
+	// Assemble the ethstats monitoring and reporting service'
 	if stats != "" {
-		if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-			var serv *les.Lightfafereum
-			ctx.Service(&serv)
-			return fafstats.New(stats, nil, serv)
-		}); err != nil {
+		if err := fafstats.New(stack, lesBackend.ApiBackend, lesBackend.Engine(), stats); err != nil {
 			return nil, err
 		}
 	}
@@ -244,7 +259,7 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 		return nil, err
 	}
 	for _, boot := range enodes {
-		old, err := enode.ParseV4(boot.String())
+		old, err := enode.Parse(enode.ValidSchemes, boot.String())
 		if err == nil {
 			stack.Server().AddPeer(old)
 		}
@@ -252,7 +267,7 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 	// Attach to the client and retrieve and interesting metadatas
 	api, err := stack.Attach()
 	if err != nil {
-		stack.Stop()
+		stack.Close()
 		return nil, err
 	}
 	client := fafclient.NewClient(api)
@@ -269,9 +284,9 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 	}, nil
 }
 
-// close terminates the fafereum connection and tears down the faucet.
+// close terminates the Ethereum connection and tears down the faucet.
 func (f *faucet) close() error {
-	return f.stack.Stop()
+	return f.stack.Close()
 }
 
 // listenAndServe registers the HTTP handlers for the faucet and boots it up
@@ -280,8 +295,7 @@ func (f *faucet) listenAndServe(port int) error {
 	go f.loop()
 
 	http.HandleFunc("/", f.webHandler)
-	http.Handle("/api", websocket.Handler(f.apiHandler))
-
+	http.HandleFunc("/api", f.apiHandler)
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 }
 
@@ -291,8 +305,14 @@ func (f *faucet) webHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(f.index)
 }
 
-// apiHandler handles requests for fafer grants and transaction statuses.
-func (f *faucet) apiHandler(conn *websocket.Conn) {
+// apiHandler handles requests for Ether grants and transaction statuses.
+func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
+	upgrader := websocket.Upgrader{}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
 	// Start tracking the connection and drop at the end
 	defer conn.Close()
 
@@ -315,7 +335,6 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		head    *types.Header
 		balance *big.Int
 		nonce   uint64
-		err     error
 	)
 	for head == nil || balance == nil {
 		// Retrieve the current stats cached by the faucet
@@ -331,6 +350,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 
 		if head == nil || balance == nil {
 			// Report the faucet offline until initial stats are ready
+			//lint:ignore ST1005 This error is to be displayed in the browser
 			if err = sendError(conn, errors.New("Faucet offline")); err != nil {
 				log.Warn("Failed to send faucet error to client", "err", err)
 				return
@@ -339,11 +359,14 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		}
 	}
 	// Send over the initial stats and the latest header
+	f.lock.RLock()
+	reqs := f.reqs
+	f.lock.RUnlock()
 	if err = send(conn, map[string]interface{}{
-		"funds":    new(big.Int).Div(balance, fafer),
+		"funds":    new(big.Int).Div(balance, ether),
 		"funded":   nonce,
 		"peers":    f.stack.Server().PeerCount(),
-		"requests": f.reqs,
+		"requests": reqs,
 	}, 3*time.Second); err != nil {
 		log.Warn("Failed to send initial stats to client", "err", err)
 		return
@@ -360,7 +383,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 			Tier    uint   `json:"tier"`
 			Captcha string `json:"captcha"`
 		}
-		if err = websocket.JSON.Receive(conn, &msg); err != nil {
+		if err = conn.ReadJSON(&msg); err != nil {
 			return
 		}
 		if !*noauthFlag && !strings.HasPrefix(msg.URL, "https://gist.github.com/") && !strings.HasPrefix(msg.URL, "https://twitter.com/") &&
@@ -372,6 +395,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 			continue
 		}
 		if msg.Tier >= uint(*tiersFlag) {
+			//lint:ignore ST1005 This error is to be displayed in the browser
 			if err = sendError(conn, errors.New("Invalid funding tier requested")); err != nil {
 				log.Warn("Failed to send tier error to client", "err", err)
 				return
@@ -409,6 +433,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 			}
 			if !result.Success {
 				log.Warn("Captcha verification failed", "err", string(result.Errors))
+				//lint:ignore ST1005 it's funny and the robot won't mind
 				if err = sendError(conn, errors.New("Beep-bop, you're a robot!")); err != nil {
 					log.Warn("Failed to send captcha failure to client", "err", err)
 					return
@@ -416,7 +441,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 				continue
 			}
 		}
-		// Retrieve the fafereum address to fund, the requesting user and a profile picture
+		// Retrieve the Ethereum address to fund, the requesting user and a profile picture
 		var (
 			username string
 			avatar   string
@@ -429,16 +454,22 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 				return
 			}
 			continue
+		case strings.HasPrefix(msg.URL, "https://plus.google.com/"):
+			//lint:ignore ST1005 Google is a company name and should be capitalized.
+			if err = sendError(conn, errors.New("Google+ authentication discontinued as the service was sunset")); err != nil {
+				log.Warn("Failed to send Google+ deprecation to client", "err", err)
+				return
+			}
+			continue
 		case strings.HasPrefix(msg.URL, "https://twitter.com/"):
 			username, avatar, address, err = authTwitter(msg.URL)
-		case strings.HasPrefix(msg.URL, "https://plus.google.com/"):
-			username, avatar, address, err = authGooglePlus(msg.URL)
 		case strings.HasPrefix(msg.URL, "https://www.facebook.com/"):
 			username, avatar, address, err = authFacebook(msg.URL)
 		case *noauthFlag:
 			username, avatar, address, err = authNoAuth(msg.URL)
 		default:
-			err = errors.New("Somfafing funky happened, please open an issue at https://github.com/fafereum/go-fafereum/issues")
+			//lint:ignore ST1005 This error is to be displayed in the browser
+			err = errors.New("Something funky happened, please open an issue at https://github.com/ethereum/go-ethereum/issues")
 		}
 		if err != nil {
 			if err = sendError(conn, err); err != nil {
@@ -457,7 +488,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		)
 		if timeout = f.timeouts[username]; time.Now().After(timeout) {
 			// User wasn't funded recently, create the funding transaction
-			amount := new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), fafer)
+			amount := new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), ether)
 			amount = new(big.Int).Mul(amount, new(big.Int).Exp(big.NewInt(5), big.NewInt(int64(msg.Tier)), nil))
 			amount = new(big.Int).Div(amount, new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(msg.Tier)), nil))
 
@@ -486,14 +517,17 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 				Time:    time.Now(),
 				Tx:      signed,
 			})
-			f.timeouts[username] = time.Now().Add(time.Duration(*minutesFlag*int(math.Pow(3, float64(msg.Tier)))) * time.Minute)
+			timeout := time.Duration(*minutesFlag*int(math.Pow(3, float64(msg.Tier)))) * time.Minute
+			grace := timeout / 288 // 24h timeout => 5m grace
+
+			f.timeouts[username] = time.Now().Add(timeout - grace)
 			fund = true
 		}
 		f.lock.Unlock()
 
 		// Send an error if too frequent funding, othewise a success
 		if !fund {
-			if err = sendError(conn, fmt.Errorf("%s left until next allowance", common.PrettyDuration(timeout.Sub(time.Now())))); err != nil { // nolint: gosimple
+			if err = sendError(conn, fmt.Errorf("%s left until next allowance", common.PrettyDuration(time.Until(timeout)))); err != nil { // nolint: gosimple
 				log.Warn("Failed to send funding error to client", "err", err)
 				return
 			}
@@ -581,7 +615,7 @@ func (f *faucet) loop() {
 			f.lock.RLock()
 			log.Info("Updated faucet state", "number", head.Number, "hash", head.Hash(), "age", common.PrettyAge(timestamp), "balance", f.balance, "nonce", f.nonce, "price", f.price)
 
-			balance := new(big.Int).Div(f.balance, fafer)
+			balance := new(big.Int).Div(f.balance, ether)
 			peers := f.stack.Server().PeerCount()
 
 			for _, conn := range f.conns {
@@ -634,7 +668,7 @@ func send(conn *websocket.Conn, value interface{}, timeout time.Duration) error 
 		timeout = 60 * time.Second
 	}
 	conn.SetWriteDeadline(time.Now().Add(timeout))
-	return websocket.JSON.Send(conn, value)
+	return conn.WriteJSON(value)
 }
 
 // sendError transmits an error to the remote end of the websocket, also setting
@@ -650,16 +684,20 @@ func sendSuccess(conn *websocket.Conn, msg string) error {
 }
 
 // authTwitter tries to authenticate a faucet request using Twitter posts, returning
-// the username, avatar URL and fafereum address to fund on success.
+// the username, avatar URL and Ethereum address to fund on success.
 func authTwitter(url string) (string, string, common.Address, error) {
 	// Ensure the user specified a meaningful URL, no fancy nonsense
 	parts := strings.Split(url, "/")
 	if len(parts) < 4 || parts[len(parts)-2] != "status" {
+		//lint:ignore ST1005 This error is to be displayed in the browser
 		return "", "", common.Address{}, errors.New("Invalid Twitter status URL")
 	}
 	// Twitter's API isn't really friendly with direct links. Still, we don't
-	// want to do ask read permissions from users, so just load the public posts and
-	// scrape it for the fafereum address and profile URL.
+	// want to do ask read permissions from users, so just load the public posts
+	// and scrape it for the Ethereum address and profile URL. We need to load
+	// the mobile page though since the main page loads tweet contents via JS.
+	url = strings.Replace(url, "https://twitter.com/", "https://mobile.twitter.com/", 1)
+
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err
@@ -669,6 +707,7 @@ func authTwitter(url string) (string, string, common.Address, error) {
 	// Resolve the username from the final redirect, no intermediate junk
 	parts = strings.Split(res.Request.URL.String(), "/")
 	if len(parts) < 4 || parts[len(parts)-2] != "status" {
+		//lint:ignore ST1005 This error is to be displayed in the browser
 		return "", "", common.Address{}, errors.New("Invalid Twitter status URL")
 	}
 	username := parts[len(parts)-3]
@@ -679,7 +718,8 @@ func authTwitter(url string) (string, string, common.Address, error) {
 	}
 	address := common.HexToAddress(string(regexp.MustCompile("0x[0-9a-fA-F]{40}").Find(body)))
 	if address == (common.Address{}) {
-		return "", "", common.Address{}, errors.New("No fafereum address found to fund")
+		//lint:ignore ST1005 This error is to be displayed in the browser
+		return "", "", common.Address{}, errors.New("No Ethereum address found to fund")
 	}
 	var avatar string
 	if parts = regexp.MustCompile("src=\"([^\"]+twimg.com/profile_images[^\"]+)\"").FindStringSubmatch(string(body)); len(parts) == 2 {
@@ -688,53 +728,23 @@ func authTwitter(url string) (string, string, common.Address, error) {
 	return username + "@twitter", avatar, address, nil
 }
 
-// authGooglePlus tries to authenticate a faucet request using GooglePlus posts,
-// returning the username, avatar URL and fafereum address to fund on success.
-func authGooglePlus(url string) (string, string, common.Address, error) {
-	// Ensure the user specified a meaningful URL, no fancy nonsense
-	parts := strings.Split(url, "/")
-	if len(parts) < 4 || parts[len(parts)-2] != "posts" {
-		return "", "", common.Address{}, errors.New("Invalid Google+ post URL")
-	}
-	username := parts[len(parts)-3]
-
-	// Google's API isn't really friendly with direct links. Still, we don't
-	// want to do ask read permissions from users, so just load the public posts and
-	// scrape it for the fafereum address and profile URL.
-	res, err := http.Get(url)
-	if err != nil {
-		return "", "", common.Address{}, err
-	}
-	defer res.Body.Close()
-
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", "", common.Address{}, err
-	}
-	address := common.HexToAddress(string(regexp.MustCompile("0x[0-9a-fA-F]{40}").Find(body)))
-	if address == (common.Address{}) {
-		return "", "", common.Address{}, errors.New("No fafereum address found to fund")
-	}
-	var avatar string
-	if parts = regexp.MustCompile("src=\"([^\"]+googleusercontent.com[^\"]+photo.jpg)\"").FindStringSubmatch(string(body)); len(parts) == 2 {
-		avatar = parts[1]
-	}
-	return username + "@google+", avatar, address, nil
-}
-
 // authFacebook tries to authenticate a faucet request using Facebook posts,
-// returning the username, avatar URL and fafereum address to fund on success.
+// returning the username, avatar URL and Ethereum address to fund on success.
 func authFacebook(url string) (string, string, common.Address, error) {
 	// Ensure the user specified a meaningful URL, no fancy nonsense
-	parts := strings.Split(url, "/")
+	parts := strings.Split(strings.Split(url, "?")[0], "/")
+	if parts[len(parts)-1] == "" {
+		parts = parts[0 : len(parts)-1]
+	}
 	if len(parts) < 4 || parts[len(parts)-2] != "posts" {
+		//lint:ignore ST1005 This error is to be displayed in the browser
 		return "", "", common.Address{}, errors.New("Invalid Facebook post URL")
 	}
 	username := parts[len(parts)-3]
 
 	// Facebook's Graph API isn't really friendly with direct links. Still, we don't
 	// want to do ask read permissions from users, so just load the public posts and
-	// scrape it for the fafereum address and profile URL.
+	// scrape it for the Ethereum address and profile URL.
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err
@@ -747,7 +757,8 @@ func authFacebook(url string) (string, string, common.Address, error) {
 	}
 	address := common.HexToAddress(string(regexp.MustCompile("0x[0-9a-fA-F]{40}").Find(body)))
 	if address == (common.Address{}) {
-		return "", "", common.Address{}, errors.New("No fafereum address found to fund")
+		//lint:ignore ST1005 This error is to be displayed in the browser
+		return "", "", common.Address{}, errors.New("No Ethereum address found to fund")
 	}
 	var avatar string
 	if parts = regexp.MustCompile("src=\"([^\"]+fbcdn.net[^\"]+)\"").FindStringSubmatch(string(body)); len(parts) == 2 {
@@ -756,13 +767,14 @@ func authFacebook(url string) (string, string, common.Address, error) {
 	return username + "@facebook", avatar, address, nil
 }
 
-// authNoAuth tries to interpret a faucet request as a plain fafereum address,
+// authNoAuth tries to interpret a faucet request as a plain Ethereum address,
 // without actually performing any remote authentication. This mode is prone to
 // Byzantine attack, so only ever use for truly private networks.
 func authNoAuth(url string) (string, string, common.Address, error) {
 	address := common.HexToAddress(regexp.MustCompile("0x[0-9a-fA-F]{40}").FindString(url))
 	if address == (common.Address{}) {
-		return "", "", common.Address{}, errors.New("No fafereum address found to fund")
+		//lint:ignore ST1005 This error is to be displayed in the browser
+		return "", "", common.Address{}, errors.New("No Ethereum address found to fund")
 	}
 	return address.Hex() + "@noauth", "", address, nil
 }

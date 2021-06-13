@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package bloombits
 
@@ -10,7 +21,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/fafereum/go-fafereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Tests that batched bloom bits are correctly rotated from the input bloom
@@ -46,4 +57,43 @@ func TestGenerator(t *testing.T) {
 			t.Errorf("output %d: bit vector mismatch have %x, want %x", i, have, want)
 		}
 	}
+}
+
+func BenchmarkGenerator(b *testing.B) {
+	var input [types.BloomBitLength][types.BloomByteLength]byte
+	b.Run("empty", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			// Crunch the input through the generator and verify the result
+			gen, err := NewGenerator(types.BloomBitLength)
+			if err != nil {
+				b.Fatalf("failed to create bloombit generator: %v", err)
+			}
+			for j, bloom := range input {
+				if err := gen.AddBloom(uint(j), bloom); err != nil {
+					b.Fatalf("bloom %d: failed to add: %v", i, err)
+				}
+			}
+		}
+	})
+	for i := 0; i < types.BloomBitLength; i++ {
+		rand.Read(input[i][:])
+	}
+	b.Run("random", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			// Crunch the input through the generator and verify the result
+			gen, err := NewGenerator(types.BloomBitLength)
+			if err != nil {
+				b.Fatalf("failed to create bloombit generator: %v", err)
+			}
+			for j, bloom := range input {
+				if err := gen.AddBloom(uint(j), bloom); err != nil {
+					b.Fatalf("bloom %d: failed to add: %v", i, err)
+				}
+			}
+		}
+	})
 }

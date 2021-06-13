@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package vm
@@ -8,8 +5,8 @@ package vm
 import (
 	"math/big"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/types"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // StateDB is an EVM database for full state querying.
@@ -39,12 +36,21 @@ type StateDB interface {
 	Suicide(common.Address) bool
 	HasSuicided(common.Address) bool
 
-	// Exist reports whfafer the given account exists in state.
+	// Exist reports whether the given account exists in state.
 	// Notably this should also return true for suicided accounts.
 	Exist(common.Address) bool
-	// Empty returns whfafer the given account is empty. Empty
+	// Empty returns whether the given account is empty. Empty
 	// is defined according to EIP161 (balance = nonce = code = 0).
 	Empty(common.Address) bool
+
+	AddressInAccessList(addr common.Address) bool
+	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
+	// AddAddressToAccessList adds the given address to the access list. This operation is safe to perform
+	// even if the feature/fork is not active yet
+	AddAddressToAccessList(addr common.Address)
+	// AddSlotToAccessList adds the given (address,slot) to the access list. This operation is safe to perform
+	// even if the feature/fork is not active yet
+	AddSlotToAccessList(addr common.Address, slot common.Hash)
 
 	RevertToSnapshot(int)
 	Snapshot() int
@@ -52,7 +58,7 @@ type StateDB interface {
 	AddLog(*types.Log)
 	AddPreimage(common.Hash, []byte)
 
-	ForEachStorage(common.Address, func(common.Hash, common.Hash) bool)
+	ForEachStorage(common.Address, func(common.Hash, common.Hash) bool) error
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

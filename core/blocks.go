@@ -1,11 +1,8 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package core
 
-import "github.com/fafereum/go-fafereum/common"
+import "github.com/ethereum/go-ethereum/common"
 
 // BadHashes represent a set of manually tracked bad hashes (usually hard forks)
 var BadHashes = map[common.Hash]bool{

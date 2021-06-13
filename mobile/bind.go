@@ -1,33 +1,32 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains all the wrappers from the bind package.
 
-package gfaf
+package geth
 
 import (
 	"math/big"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/accounts/abi"
-	"github.com/fafereum/go-fafereum/accounts/abi/bind"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/types"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// Signer is an interaface defining the callback when a contract requires a
-// mfafod to sign the transaction before submission.
+// Signer is an interface defining the callback when a contract requires a
+// method to sign the transaction before submission.
 type Signer interface {
-	Sign(*Address, *Transaction) (tx *Transaction, _ error)
+	Sign(addr *Address, unsignedTx *Transaction) (tx *Transaction, _ error)
 }
 
-type signer struct {
+type MobileSigner struct {
 	sign bind.SignerFn
 }
 
-func (s *signer) Sign(addr *Address, unsignedTx *Transaction) (signedTx *Transaction, _ error) {
-	sig, err := s.sign(types.HomesteadSigner{}, addr.address, unsignedTx.tx)
+func (s *MobileSigner) Sign(addr *Address, unsignedTx *Transaction) (signedTx *Transaction, _ error) {
+	sig, err := s.sign(addr.address, unsignedTx.tx)
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +53,31 @@ func (opts *CallOpts) GetGasLimit() int64 { return 0 /* TODO(karalabe) */ }
 func (opts *CallOpts) SetPending(pending bool)     { opts.opts.Pending = pending }
 func (opts *CallOpts) SetGasLimit(limit int64)     { /* TODO(karalabe) */ }
 func (opts *CallOpts) SetContext(context *Context) { opts.opts.Context = context.context }
+func (opts *CallOpts) SetFrom(addr *Address)       { opts.opts.From = addr.address }
 
 // TransactOpts is the collection of authorization data required to create a
-// valid fafereum transaction.
+// valid Ethereum transaction.
 type TransactOpts struct {
 	opts bind.TransactOpts
+}
+
+// NewTransactOpts creates a new option set for contract transaction.
+func NewTransactOpts() *TransactOpts {
+	return new(TransactOpts)
+}
+
+// NewKeyedTransactOpts is a utility method to easily create a transaction signer
+// from a single private key.
+func NewKeyedTransactOpts(keyJson []byte, passphrase string, chainID *big.Int) (*TransactOpts, error) {
+	key, err := keystore.DecryptKey(keyJson, passphrase)
+	if err != nil {
+		return nil, err
+	}
+	auth, err := bind.NewKeyedTransactorWithChainID(key.PrivateKey, chainID)
+	if err != nil {
+		return nil, err
+	}
+	return &TransactOpts{*auth}, nil
 }
 
 func (opts *TransactOpts) GetFrom() *Address    { return &Address{opts.opts.From} }
@@ -77,7 +96,7 @@ func (opts *TransactOpts) GetGasLimit() int64   { return int64(opts.opts.GasLimi
 func (opts *TransactOpts) SetFrom(from *Address) { opts.opts.From = from.address }
 func (opts *TransactOpts) SetNonce(nonce int64)  { opts.opts.Nonce = big.NewInt(nonce) }
 func (opts *TransactOpts) SetSigner(s Signer) {
-	opts.opts.Signer = func(signer types.Signer, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+	opts.opts.Signer = func(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
 		sig, err := s.Sign(&Address{addr}, &Transaction{tx})
 		if err != nil {
 			return nil, err
@@ -91,7 +110,7 @@ func (opts *TransactOpts) SetGasLimit(limit int64)     { opts.opts.GasLimit = ui
 func (opts *TransactOpts) SetContext(context *Context) { opts.opts.Context = context.context }
 
 // BoundContract is the base wrapper object that reflects a contract on the
-// fafereum network. It contains a collection of mfafods that are used by the
+// Ethereum network. It contains a collection of methods that are used by the
 // higher level contract bindings to operate.
 type BoundContract struct {
 	contract *bind.BoundContract
@@ -99,9 +118,9 @@ type BoundContract struct {
 	deployer *types.Transaction
 }
 
-// DeployContract deploys a contract onto the fafereum blockchain and binds the
+// DeployContract deploys a contract onto the Ethereum blockchain and binds the
 // deployment address with a wrapper.
-func DeployContract(opts *TransactOpts, abiJSON string, bytecode []byte, client *fafereumClient, args *Interfaces) (contract *BoundContract, _ error) {
+func DeployContract(opts *TransactOpts, abiJSON string, bytecode []byte, client *EthereumClient, args *Interfaces) (contract *BoundContract, _ error) {
 	// Deploy the contract to the network
 	parsed, err := abi.JSON(strings.NewReader(abiJSON))
 	if err != nil {
@@ -120,7 +139,7 @@ func DeployContract(opts *TransactOpts, abiJSON string, bytecode []byte, client 
 
 // BindContract creates a low level contract interface through which calls and
 // transactions may be made through.
-func BindContract(address *Address, abiJSON string, client *fafereumClient) (contract *BoundContract, _ error) {
+func BindContract(address *Address, abiJSON string, client *EthereumClient) (contract *BoundContract, _ error) {
 	parsed, err := abi.JSON(strings.NewReader(abiJSON))
 	if err != nil {
 		return nil, err
@@ -139,29 +158,30 @@ func (c *BoundContract) GetDeployer() *Transaction {
 	return &Transaction{c.deployer}
 }
 
-// Call invokes the (constant) contract mfafod with params as input values and
+// Call invokes the (constant) contract method with params as input values and
 // sets the output to result.
-func (c *BoundContract) Call(opts *CallOpts, out *Interfaces, mfafod string, args *Interfaces) error {
-	if len(out.objects) == 1 {
-		result := out.objects[0]
-		if err := c.contract.Call(&opts.opts, result, mfafod, args.objects...); err != nil {
-			return err
-		}
-		out.objects[0] = result
-	} else {
-		results := make([]interface{}, len(out.objects))
-		copy(results, out.objects)
-		if err := c.contract.Call(&opts.opts, &results, mfafod, args.objects...); err != nil {
-			return err
-		}
-		copy(out.objects, results)
+func (c *BoundContract) Call(opts *CallOpts, out *Interfaces, method string, args *Interfaces) error {
+	results := make([]interface{}, len(out.objects))
+	copy(results, out.objects)
+	if err := c.contract.Call(&opts.opts, &results, method, args.objects...); err != nil {
+		return err
 	}
+	copy(out.objects, results)
 	return nil
 }
 
-// Transact invokes the (paid) contract mfafod with params as input values.
-func (c *BoundContract) Transact(opts *TransactOpts, mfafod string, args *Interfaces) (tx *Transaction, _ error) {
-	rawTx, err := c.contract.Transact(&opts.opts, mfafod, args.objects...)
+// Transact invokes the (paid) contract method with params as input values.
+func (c *BoundContract) Transact(opts *TransactOpts, method string, args *Interfaces) (tx *Transaction, _ error) {
+	rawTx, err := c.contract.Transact(&opts.opts, method, args.objects...)
+	if err != nil {
+		return nil, err
+	}
+	return &Transaction{rawTx}, nil
+}
+
+// RawTransact invokes the (paid) contract method with raw calldata as input values.
+func (c *BoundContract) RawTransact(opts *TransactOpts, calldata []byte) (tx *Transaction, _ error) {
+	rawTx, err := c.contract.RawTransact(&opts.opts, calldata)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +189,7 @@ func (c *BoundContract) Transact(opts *TransactOpts, mfafod string, args *Interf
 }
 
 // Transfer initiates a plain transaction to move funds to the contract, calling
-// its default mfafod if one is available.
+// its default method if one is available.
 func (c *BoundContract) Transfer(opts *TransactOpts) (tx *Transaction, _ error) {
 	rawTx, err := c.contract.Transfer(&opts.opts)
 	if err != nil {

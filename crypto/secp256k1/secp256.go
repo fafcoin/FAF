@@ -1,6 +1,6 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2015 Jeffrey Wilcke, Felix Lange, Gustav Simonsson. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be found in
+// the LICENSE file.
 
 // Package secp256k1 wraps the bitcoin secp256k1 C library.
 package secp256k1
@@ -8,10 +8,19 @@ package secp256k1
 /*
 #cgo CFLAGS: -I./libsecp256k1
 #cgo CFLAGS: -I./libsecp256k1/src/
+
+#ifdef __SIZEOF_INT128__
+#  define HAVE___INT128
+#  define USE_FIELD_5X52
+#  define USE_SCALAR_4X64
+#else
+#  define USE_FIELD_10X26
+#  define USE_SCALAR_8X32
+#endif
+
+#define USE_ENDOMORPHISM
 #define USE_NUM_NONE
-#define USE_FIELD_10X26
 #define USE_FIELD_INV_BUILTIN
-#define USE_SCALAR_8X32
 #define USE_SCALAR_INV_BUILTIN
 #define NDEBUG
 #include "./libsecp256k1/src/secp256k1.c"

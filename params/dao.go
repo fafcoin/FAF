@@ -1,13 +1,11 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package params
 
 import (
 	"math/big"
 
-	"github.com/fafereum/go-fafereum/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // DAOForkBlockExtra is the block header extra-data field to set for the DAO fork

@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -15,10 +26,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-// makeWizard creates and returns a new puppfaf wizard.
+// makeWizard creates and returns a new puppeth wizard.
 func makeWizard(network string) *wizard {
 	return &wizard{
 		network: network,
@@ -32,25 +43,25 @@ func makeWizard(network string) *wizard {
 }
 
 // run displays some useful infos to the user, starting on the journey of
-// setting up a new or managing an existing fafereum private network.
+// setting up a new or managing an existing Ethereum private network.
 func (w *wizard) run() {
-	//fmt.Println("+-----------------------------------------------------------+")
-	//fmt.Println("| Welcome to puppfaf, your fafereum private network manager |")
-	//fmt.Println("|                                                           |")
-	//fmt.Println("| This tool lets you create a new fafereum network down to  |")
-	//fmt.Println("| the genesis block, bootnodes, miners and fafstats servers |")
-	//fmt.Println("| without the hassle that it would normally entail.         |")
-	//fmt.Println("|                                                           |")
-	//fmt.Println("| Puppfaf uses SSH to dial in to remote servers, and builds |")
-	//fmt.Println("| its network components out of Docker containers using the |")
-	//fmt.Println("| docker-compose toolset.                                   |")
-	//fmt.Println("+-----------------------------------------------------------+")
-	//fmt.Println()
+	fmt.Println("+-----------------------------------------------------------+")
+	fmt.Println("| Welcome to puppeth, your Ethereum private network manager |")
+	fmt.Println("|                                                           |")
+	fmt.Println("| This tool lets you create a new Ethereum network down to  |")
+	fmt.Println("| the genesis block, bootnodes, miners and ethstats servers |")
+	fmt.Println("| without the hassle that it would normally entail.         |")
+	fmt.Println("|                                                           |")
+	fmt.Println("| Puppeth uses SSH to dial in to remote servers, and builds |")
+	fmt.Println("| its network components out of Docker containers using the |")
+	fmt.Println("| docker-compose toolset.                                   |")
+	fmt.Println("+-----------------------------------------------------------+")
+	fmt.Println()
 
-	// Make sure we have a good network name to work with	//fmt.Println()
+	// Make sure we have a good network name to work with	fmt.Println()
 	// Docker accepts hyphens in image names, but doesn't like it for container names
 	if w.network == "" {
-		//fmt.Println("Please specify a network name to administer (no spaces, hyphens or capital letters please)")
+		fmt.Println("Please specify a network name to administer (no spaces, hyphens or capital letters please)")
 		for {
 			w.network = w.readString()
 			if !strings.Contains(w.network, " ") && !strings.Contains(w.network, "-") && strings.ToLower(w.network) == w.network {
@@ -60,10 +71,10 @@ func (w *wizard) run() {
 			log.Error("I also like to live dangerously, still no spaces, hyphens or capital letters")
 		}
 	}
-	log.Info("Administering fafereum network", "name", w.network)
+	log.Info("Administering Ethereum network", "name", w.network)
 
 	// Load initial configurations and connect to all live servers
-	w.conf.path = filepath.Join(os.Getenv("HOME"), ".puppfaf", w.network)
+	w.conf.path = filepath.Join(os.Getenv("HOME"), ".puppeth", w.network)
 
 	blob, err := ioutil.ReadFile(w.conf.path)
 	if err != nil {
@@ -94,23 +105,23 @@ func (w *wizard) run() {
 	}
 	// Basics done, loop ad infinitum about what to do
 	for {
-		//fmt.Println()
-		//fmt.Println("What would you like to do? (default = stats)")
-		//fmt.Println(" 1. Show network stats")
+		fmt.Println()
+		fmt.Println("What would you like to do? (default = stats)")
+		fmt.Println(" 1. Show network stats")
 		if w.conf.Genesis == nil {
-			//fmt.Println(" 2. Configure new genesis")
+			fmt.Println(" 2. Configure new genesis")
 		} else {
-			//fmt.Println(" 2. Manage existing genesis")
+			fmt.Println(" 2. Manage existing genesis")
 		}
 		if len(w.servers) == 0 {
-			//fmt.Println(" 3. Track new remote server")
+			fmt.Println(" 3. Track new remote server")
 		} else {
-			//fmt.Println(" 3. Manage tracked machines")
+			fmt.Println(" 3. Manage tracked machines")
 		}
 		if len(w.services) == 0 {
-			//fmt.Println(" 4. Deploy network components")
+			fmt.Println(" 4. Deploy network components")
 		} else {
-			//fmt.Println(" 4. Manage network components")
+			fmt.Println(" 4. Manage network components")
 		}
 
 		choice := w.read()
@@ -120,10 +131,10 @@ func (w *wizard) run() {
 
 		case choice == "2":
 			if w.conf.Genesis == nil {
-				//fmt.Println()
-				//fmt.Println("What would you like to do? (default = create)")
-				//fmt.Println(" 1. Create new genesis from scratch")
-				//fmt.Println(" 2. Import already existing genesis")
+				fmt.Println()
+				fmt.Println("What would you like to do? (default = create)")
+				fmt.Println(" 1. Create new genesis from scratch")
+				fmt.Println(" 2. Import already existing genesis")
 
 				choice := w.read()
 				switch {
@@ -132,7 +143,7 @@ func (w *wizard) run() {
 				case choice == "2":
 					w.importGenesis()
 				default:
-					log.Error("That's not somfafing I can do")
+					log.Error("That's not something I can do")
 				}
 			} else {
 				w.manageGenesis()
@@ -152,7 +163,7 @@ func (w *wizard) run() {
 				w.manageComponents()
 			}
 		default:
-			log.Error("That's not somfafing I can do")
+			log.Error("That's not something I can do")
 		}
 	}
 }

@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package event
 
@@ -9,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common/mclock"
+	"github.com/ethereum/go-ethereum/common/mclock"
 )
 
 // Subscription represents a stream of events. The carrier of the events is typically a
@@ -23,7 +21,7 @@ import (
 // The error channel is closed when the subscription ends successfully (i.e. when the
 // source of events is closed). It is also closed when Unsubscribe is called.
 //
-// The Unsubscribe mfafod cancels the sending of events. You must call Unsubscribe in all
+// The Unsubscribe method cancels the sending of events. You must call Unsubscribe in all
 // cases to ensure that resources related to the subscription are released. It can be
 // called any number of times.
 type Subscription interface {
@@ -133,7 +131,6 @@ func (s *resubscribeSub) loop() {
 func (s *resubscribeSub) subscribe() Subscription {
 	subscribed := make(chan error)
 	var sub Subscription
-retry:
 	for {
 		s.lastTry = mclock.Now()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -145,19 +142,19 @@ retry:
 		select {
 		case err := <-subscribed:
 			cancel()
-			if err != nil {
-				// Subscribing failed, wait before launching the next try.
-				if s.backoffWait() {
-					return nil
+			if err == nil {
+				if sub == nil {
+					panic("event: ResubscribeFunc returned nil subscription and no error")
 				}
-				continue retry
+				return sub
 			}
-			if sub == nil {
-				panic("event: ResubscribeFunc returned nil subscription and no error")
+			// Subscribing failed, wait before launching the next try.
+			if s.backoffWait() {
+				return nil // unsubscribed during wait
 			}
-			return sub
 		case <-s.unsub:
 			cancel()
+			<-subscribed // avoid leaking the s.fn goroutine.
 			return nil
 		}
 	}

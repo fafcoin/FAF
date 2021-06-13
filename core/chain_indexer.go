@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package core
 
@@ -13,15 +24,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/rawdb"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/event"
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-// ChainIndexerBackend defines the mfafods needed to process chain segments in
+// ChainIndexerBackend defines the methods needed to process chain segments in
 // the background and write the segment results into the database. These can be
 // used to create filter blooms or CHTs.
 type ChainIndexerBackend interface {
@@ -35,6 +46,9 @@ type ChainIndexerBackend interface {
 
 	// Commit finalizes the section metadata and stores it into the database.
 	Commit() error
+
+	// Prune deletes the chain index older than the given threshold.
+	Prune(threshold uint64) error
 }
 
 // ChainIndexerChain interface is used for connecting the indexer to a blockchain
@@ -61,7 +75,7 @@ type ChainIndexer struct {
 	backend  ChainIndexerBackend // Background processor generating the index data content
 	children []*ChainIndexer     // Child indexers to cascade chain updates to
 
-	active    uint32          // Flag whfafer the event loop was started
+	active    uint32          // Flag whether the event loop was started
 	update    chan struct{}   // Notification channel that headers should be processed
 	quit      chan chan error // Quit channel to tear down running goroutines
 	ctx       context.Context
@@ -80,13 +94,13 @@ type ChainIndexer struct {
 	throttling time.Duration // Disk throttling to prevent a heavy upgrade from hogging resources
 
 	log  log.Logger
-	lock sync.RWMutex
+	lock sync.Mutex
 }
 
 // NewChainIndexer creates a new chain indexer to do background processing on
 // chain segments of a given size after certain number of confirmations passed.
 // The throttling parameter might be used to prevent database thrashing.
-func NewChainIndexer(chainDb, indexDb fafdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string) *ChainIndexer {
+func NewChainIndexer(chainDb fafdb.Database, indexDb fafdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string) *ChainIndexer {
 	c := &ChainIndexer{
 		chainDb:     chainDb,
 		indexDb:     indexDb,
@@ -117,12 +131,13 @@ func (c *ChainIndexer) AddCheckpoint(section uint64, shead common.Hash) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	// Short circuit if the given checkpoint is below than local's.
+	if c.checkpointSections >= section+1 || section < c.storedSections {
+		return
+	}
 	c.checkpointSections = section + 1
 	c.checkpointHead = shead
 
-	if section < c.storedSections {
-		return
-	}
 	c.setSectionHead(section, shead)
 	c.setValidSections(section + 1)
 }
@@ -232,7 +247,7 @@ func (c *ChainIndexer) newHead(head uint64, reorg bool) {
 	// If a reorg happened, invalidate all sections until that point
 	if reorg {
 		// Revert the known section number to the reorg point
-		known := head / c.sectionSize
+		known := (head + 1) / c.sectionSize
 		stored := known
 		if known < c.checkpointSections {
 			known = 0
@@ -312,6 +327,7 @@ func (c *ChainIndexer) updateLoop() {
 					updated = time.Now()
 				}
 				// Cache the current section count and head to allow unlocking the mutex
+				c.verifyLastHead()
 				section := c.storedSections
 				var oldHead common.Hash
 				if section > 0 {
@@ -331,8 +347,8 @@ func (c *ChainIndexer) updateLoop() {
 				}
 				c.lock.Lock()
 
-				// If processing succeeded and no reorgs occcurred, mark the section completed
-				if err == nil && oldHead == c.SectionHead(section-1) {
+				// If processing succeeded and no reorgs occurred, mark the section completed
+				if err == nil && (section == 0 || oldHead == c.SectionHead(section-1)) {
 					c.setSectionHead(section, newHead)
 					c.setValidSections(section + 1)
 					if c.storedSections == c.knownSections && updating {
@@ -347,6 +363,7 @@ func (c *ChainIndexer) updateLoop() {
 				} else {
 					// If processing failed, don't retry until further notification
 					c.log.Debug("Chain index processing failed", "section", section, "err", err)
+					c.verifyLastHead()
 					c.knownSections = c.storedSections
 				}
 			}
@@ -372,7 +389,6 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 	c.log.Trace("Processing new chain section", "section", section)
 
 	// Reset and partial processing
-
 	if err := c.backend.Reset(c.ctx, section, lastHead); err != nil {
 		c.setValidSections(0)
 		return common.Hash{}, err
@@ -400,6 +416,18 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 	return lastHead, nil
 }
 
+// verifyLastHead compares last stored section head with the corresponding block hash in the
+// actual canonical chain and rolls back reorged sections if necessary to ensure that stored
+// sections are all valid
+func (c *ChainIndexer) verifyLastHead() {
+	for c.storedSections > 0 && c.storedSections > c.checkpointSections {
+		if c.SectionHead(c.storedSections-1) == rawdb.ReadCanonicalHash(c.chainDb, c.storedSections*c.sectionSize-1) {
+			return
+		}
+		c.setValidSections(c.storedSections - 1)
+	}
+}
+
 // Sections returns the number of processed sections maintained by the indexer
 // and also the information about the last header indexed for potential canonical
 // verifications.
@@ -407,11 +435,15 @@ func (c *ChainIndexer) Sections() (uint64, uint64, common.Hash) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	c.verifyLastHead()
 	return c.storedSections, c.storedSections*c.sectionSize - 1, c.SectionHead(c.storedSections - 1)
 }
 
 // AddChildIndexer adds a child ChainIndexer that can use the output of this one
 func (c *ChainIndexer) AddChildIndexer(indexer *ChainIndexer) {
+	if indexer == c {
+		panic("can't add indexer as a child of itself")
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -427,6 +459,11 @@ func (c *ChainIndexer) AddChildIndexer(indexer *ChainIndexer) {
 	if sections > 0 {
 		indexer.newHead(sections*c.sectionSize-1, false)
 	}
+}
+
+// Prune deletes all chain data older than given threshold.
+func (c *ChainIndexer) Prune(threshold uint64) error {
+	return c.backend.Prune(threshold)
 }
 
 // loadValidSections reads the number of valid sections from the index database

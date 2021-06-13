@@ -1,21 +1,19 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package simulations
 
 import (
 	"testing"
 
-	"github.com/fafereum/go-fafereum/node"
-	"github.com/fafereum/go-fafereum/p2p/enode"
-	"github.com/fafereum/go-fafereum/p2p/simulations/adapters"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
 )
 
 func newTestNetwork(t *testing.T, nodeCount int) (*Network, []enode.ID) {
 	t.Helper()
-	adapter := adapters.NewSimAdapter(adapters.Services{
-		"noopwoop": func(ctx *adapters.ServiceContext) (node.Service, error) {
+	adapter := adapters.NewSimAdapter(adapters.LifecycleConstructors{
+		"noopwoop": func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
 			return NewNoopService(nil), nil
 		},
 	})

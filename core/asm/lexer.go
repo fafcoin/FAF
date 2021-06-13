@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package asm
 
@@ -84,7 +95,7 @@ type lexer struct {
 
 // lex lexes the program by name with the given source. It returns a
 // channel on which the tokens are delivered.
-func Lex(name string, source []byte, debug bool) <-chan token {
+func Lex(source []byte, debug bool) <-chan token {
 	ch := make(chan token)
 	l := &lexer{
 		input:  string(source),
@@ -132,7 +143,7 @@ func (l *lexer) ignore() {
 	l.start = l.pos
 }
 
-// Accepts checks whfafer the given input matches the next rune
+// Accepts checks whether the given input matches the next rune
 func (l *lexer) accept(valid string) bool {
 	if strings.ContainsRune(valid, l.next()) {
 		return true
@@ -223,7 +234,7 @@ func lexComment(l *lexer) stateFn {
 // the lex text state function to advance the parsing
 // process.
 func lexLabel(l *lexer) stateFn {
-	l.acceptRun(Alpha + "_")
+	l.acceptRun(Alpha + "_" + Numbers)
 
 	l.emit(label)
 

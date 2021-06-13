@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -10,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // deployWallet creates a new web wallet based on some user input.
@@ -20,8 +31,8 @@ func (w *wizard) deployWallet() {
 		log.Error("No genesis block configured")
 		return
 	}
-	if w.conf.fafstats == "" {
-		log.Error("No fafstats server configured")
+	if w.conf.ethstats == "" {
+		log.Error("No ethstats server configured")
 		return
 	}
 	// Select the server to interact with
@@ -44,17 +55,17 @@ func (w *wizard) deployWallet() {
 	infos.network = w.conf.Genesis.Config.ChainID.Int64()
 
 	// Figure out which port to listen on
-	//fmt.Println()
+	fmt.Println()
 	fmt.Printf("Which port should the wallet listen on? (default = %d)\n", infos.webPort)
 	infos.webPort = w.readDefaultInt(infos.webPort)
 
-	// Figure which virtual-host to deploy fafstats on
+	// Figure which virtual-host to deploy ethstats on
 	if infos.webHost, err = w.ensureVirtualHost(client, infos.webPort, infos.webHost); err != nil {
 		log.Error("Failed to decide on wallet host", "err", err)
 		return
 	}
 	// Figure out where the user wants to store the persistent data
-	//fmt.Println()
+	fmt.Println()
 	if infos.datadir == "" {
 		fmt.Printf("Where should data be stored on the remote machine?\n")
 		infos.datadir = w.readString()
@@ -63,27 +74,27 @@ func (w *wizard) deployWallet() {
 		infos.datadir = w.readDefaultString(infos.datadir)
 	}
 	// Figure out which port to listen on
-	//fmt.Println()
+	fmt.Println()
 	fmt.Printf("Which TCP/UDP port should the backing node listen on? (default = %d)\n", infos.nodePort)
 	infos.nodePort = w.readDefaultInt(infos.nodePort)
 
-	//fmt.Println()
+	fmt.Println()
 	fmt.Printf("Which port should the backing RPC API listen on? (default = %d)\n", infos.rpcPort)
 	infos.rpcPort = w.readDefaultInt(infos.rpcPort)
 
 	// Set a proper name to report on the stats page
-	//fmt.Println()
-	if infos.fafstats == "" {
+	fmt.Println()
+	if infos.ethstats == "" {
 		fmt.Printf("What should the wallet be called on the stats page?\n")
-		infos.fafstats = w.readString() + ":" + w.conf.fafstats
+		infos.ethstats = w.readString() + ":" + w.conf.ethstats
 	} else {
-		fmt.Printf("What should the wallet be called on the stats page? (default = %s)\n", infos.fafstats)
-		infos.fafstats = w.readDefaultString(infos.fafstats) + ":" + w.conf.fafstats
+		fmt.Printf("What should the wallet be called on the stats page? (default = %s)\n", infos.ethstats)
+		infos.ethstats = w.readDefaultString(infos.ethstats) + ":" + w.conf.ethstats
 	}
 	// Try to deploy the wallet on the host
 	nocache := false
 	if existed {
-		//fmt.Println()
+		fmt.Println()
 		fmt.Printf("Should the wallet be built from scratch (y/n)? (default = no)\n")
 		nocache = w.readDefaultYesNo(false)
 	}

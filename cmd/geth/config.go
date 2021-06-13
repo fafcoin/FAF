@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -9,20 +20,18 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/fafereum/go-fafereum/log"
-	"math/big"
 	"os"
 	"reflect"
 	"unicode"
 
-	cli "gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1"
 
-	"github.com/fafereum/go-fafereum/cmd/utils"
-	"github.com/fafereum/go-fafereum/dashboard"
-	"github.com/fafereum/go-fafereum/faf"
-	"github.com/fafereum/go-fafereum/node"
-	"github.com/fafereum/go-fafereum/params"
-	whisper "github.com/fafereum/go-fafereum/whisper/whisperv6"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/internal/fafapi"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/naoina/toml"
 )
 
@@ -60,19 +69,28 @@ var tomlSettings = toml.Config{
 	},
 }
 
-type fafstatsConfig struct {
+type ethstatsConfig struct {
 	URL string `toml:",omitempty"`
 }
 
-type gfafConfig struct {
-	faf       faf.Config
-	Shh       whisper.Config
-	Node      node.Config
-	fafstats  fafstatsConfig
-	Dashboard dashboard.Config
+// whisper has been deprecated, but clients out there might still have [Shh]
+// in their config, which will crash. Cut them some slack by keeping the
+// config, and displaying a message that those config switches are ineffectual.
+// To be removed circa Q1 2021 -- @gballet.
+type whisperDeprecatedConfig struct {
+	MaxMessageSize                        uint32  `toml:",omitempty"`
+	MinimumAcceptedPOW                    float64 `toml:",omitempty"`
+	RestrictConnectionBetweenLightClients bool    `toml:",omitempty"`
 }
 
-func loadConfig(file string, cfg *gfafConfig) error {
+type gethConfig struct {
+	Eth      eth.Config
+	Shh      whisperDeprecatedConfig
+	Node     node.Config
+	Ethstats ethstatsConfig
+}
+
+func loadConfig(file string, cfg *gethConfig) error {
 	f, err := os.Open(file)
 	if err != nil {
 		return err
@@ -90,20 +108,19 @@ func loadConfig(file string, cfg *gfafConfig) error {
 func defaultNodeConfig() node.Config {
 	cfg := node.DefaultConfig
 	cfg.Name = clientIdentifier
-	cfg.Version = params.VersionWithCommit(gitCommit)
-	cfg.HTTPModules = append(cfg.HTTPModules, "faf", "shh")
-	cfg.WSModules = append(cfg.WSModules, "faf", "shh")
-	cfg.IPCPath = "gfaf.ipc"
+	cfg.Version = params.VersionWithCommit(gitCommit, gitDate)
+	cfg.HTTPModules = append(cfg.HTTPModules, "eth")
+	cfg.WSModules = append(cfg.WSModules, "eth")
+	cfg.IPCPath = "geth.ipc"
 	return cfg
 }
 
-func makeConfigNode(ctx *cli.Context) (*node.Node, gfafConfig) {
+// makeConfigNode loads geth configuration and creates a blank node instance.
+func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	// Load defaults.
-	cfg := gfafConfig{
-		faf:       faf.DefaultConfig,
-		Shh:       whisper.DefaultConfig,
-		Node:      defaultNodeConfig(),
-		Dashboard: dashboard.DefaultConfig,
+	cfg := gethConfig{
+		Eth:  eth.DefaultConfig,
+		Node: defaultNodeConfig(),
 	}
 
 	// Load config file.
@@ -111,71 +128,52 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gfafConfig) {
 		if err := loadConfig(file, &cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}
+
+		if cfg.Shh != (whisperDeprecatedConfig{}) {
+			log.Warn("Deprecated whisper config detected. Whisper has been moved to github.com/ethereum/whisper")
+		}
 	}
 
 	// Apply flags.
-	log.Info("SetNodeConfig")
 	utils.SetNodeConfig(ctx, &cfg.Node)
 	stack, err := node.New(&cfg.Node)
 	if err != nil {
 		utils.Fatalf("Failed to create the protocol stack: %v", err)
 	}
-	log.Info("SetfafConfig")
-	utils.SetfafConfig(ctx, stack, &cfg.faf)
-	if ctx.GlobalIsSet(utils.fafStatsURLFlag.Name) {
-		cfg.fafstats.URL = ctx.GlobalString(utils.fafStatsURLFlag.Name)
+	utils.SetEthConfig(ctx, stack, &cfg.Eth)
+	if ctx.GlobalIsSet(utils.EthStatsURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsURLFlag.Name)
 	}
-	log.Info("SetShhConfig")
-	utils.SetShhConfig(ctx, stack, &cfg.Shh)
-	log.Info("SetDashboardConfig")
-	utils.SetDashboardConfig(ctx, &cfg.Dashboard)
+	utils.SetShhConfig(ctx, stack)
+
 	return stack, cfg
 }
 
 // enableWhisper returns true in case one of the whisper flags is set.
-func enableWhisper(ctx *cli.Context) bool {
+func checkWhisper(ctx *cli.Context) {
 	for _, flag := range whisperFlags {
 		if ctx.GlobalIsSet(flag.GetName()) {
-			return true
+			log.Warn("deprecated whisper flag detected. Whisper has been moved to github.com/ethereum/whisper")
 		}
 	}
-	return false
 }
-// 根据命令行参数和一些特殊的配置来创建一个node
-func makeFullNode(ctx *cli.Context) *node.Node {
-	//加载配置文件
-	log.Info(`makeConfigNode`)
+
+// makeFullNode loads geth configuration and creates the Ethereum backend.
+func makeFullNode(ctx *cli.Context) (*node.Node, fafapi.Backend) {
 	stack, cfg := makeConfigNode(ctx)
-	if ctx.GlobalIsSet(utils.ConstantinopleOverrideFlag.Name) {
-		cfg.faf.ConstantinopleOverride = new(big.Int).SetUint64(ctx.GlobalUint64(utils.ConstantinopleOverrideFlag.Name))
-	}
-	//注册一个以太坊服务
-	utils.RegisterfafService(stack, &cfg.faf)
 
-	if ctx.GlobalBool(utils.DashboardEnabledFlag.Name) {
-		utils.RegisterDashboardService(stack, &cfg.Dashboard, gitCommit)
-	}
-	// Whisper must be explicitly enabled by specifying at least 1 whisper flag or in dev mode
-	shhEnabled := enableWhisper(ctx)
-	shhAutoEnabled := !ctx.GlobalIsSet(utils.WhisperEnabledFlag.Name) && ctx.GlobalIsSet(utils.DeveloperFlag.Name)
-	if shhEnabled || shhAutoEnabled {
-		if ctx.GlobalIsSet(utils.WhisperMaxMessageSizeFlag.Name) {
-			cfg.Shh.MaxMessageSize = uint32(ctx.Int(utils.WhisperMaxMessageSizeFlag.Name))
-		}
-		if ctx.GlobalIsSet(utils.WhisperMinPOWFlag.Name) {
-			cfg.Shh.MinimumAcceptedPOW = ctx.Float64(utils.WhisperMinPOWFlag.Name)
-		}
-		if ctx.GlobalIsSet(utils.WhisperRestrictConnectionBetweenLightClientsFlag.Name) {
-			cfg.Shh.RestrictConnectionBetweenLightClients = true
-		}
-		utils.RegisterShhService(stack, &cfg.Shh)
-	}
+	backend := utils.RegisterEthService(stack, &cfg.Eth)
 
-	// Add the fafereum Stats daemon if requested.
-	if cfg.fafstats.URL != "" {
-		utils.RegisterfafStatsService(stack, cfg.fafstats.URL)
+	checkWhisper(ctx)
+	// Configure GraphQL if requested
+	if ctx.GlobalIsSet(utils.GraphQLEnabledFlag.Name) {
+		utils.RegisterGraphQLService(stack, backend, cfg.Node)
 	}
-	return stack
+	// Add the Ethereum Stats daemon if requested.
+	if cfg.Ethstats.URL != "" {
+		utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL)
+	}
+	return stack, backend
 }
 
 // dumpConfig is the dumpconfig command.
@@ -183,8 +181,8 @@ func dumpConfig(ctx *cli.Context) error {
 	_, cfg := makeConfigNode(ctx)
 	comment := ""
 
-	if cfg.faf.Genesis != nil {
-		cfg.faf.Genesis = nil
+	if cfg.Eth.Genesis != nil {
+		cfg.Eth.Genesis = nil
 		comment += "# Note: this config doesn't contain the genesis block.\n\n"
 	}
 

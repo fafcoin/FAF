@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -10,9 +21,9 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/fafereum/go-fafereum/accounts/keystore"
-	"github.com/fafereum/go-fafereum/cmd/utils"
-	"github.com/fafereum/go-fafereum/crypto"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/crypto"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -49,7 +60,7 @@ make sure to use this feature with great caution!`,
 		}
 
 		// Decrypt key with passphrase.
-		passphrase := getPassphrase(ctx)
+		passphrase := getPassphrase(ctx, false)
 		key, err := keystore.DecryptKey(keyjson, passphrase)
 		if err != nil {
 			utils.Fatalf("Error decrypting key: %v", err)
@@ -69,10 +80,10 @@ make sure to use this feature with great caution!`,
 		if ctx.Bool(jsonFlag.Name) {
 			mustPrintJSON(out)
 		} else {
-			//fmt.Println("Address:       ", out.Address)
-			//fmt.Println("Public key:    ", out.PublicKey)
+			fmt.Println("Address:       ", out.Address)
+			fmt.Println("Public key:    ", out.PublicKey)
 			if showPrivate {
-				//fmt.Println("Private key:   ", out.PrivateKey)
+				fmt.Println("Private key:   ", out.PrivateKey)
 			}
 		}
 		return nil

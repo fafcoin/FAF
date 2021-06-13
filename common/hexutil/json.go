@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package hexutil
@@ -28,7 +25,8 @@ type Bytes []byte
 // MarshalText implements encoding.TextMarshaler
 func (b Bytes) MarshalText() ([]byte, error) {
 	result := make([]byte, len(b)*2+2)
-	copy(result, `0x`)
+	//copy(result, `0x`)
+	copy(result, `fx`)
 	hex.Encode(result[2:], b)
 	return result, nil
 }
@@ -61,9 +59,28 @@ func (b Bytes) String() string {
 	return Encode(b)
 }
 
+// ImplementsGraphQLType returns true if Bytes implements the specified GraphQL type.
+func (b Bytes) ImplementsGraphQLType(name string) bool { return name == "Bytes" }
+
+// UnmarshalGraphQL unmarshals the provided GraphQL query data.
+func (b *Bytes) UnmarshalGraphQL(input interface{}) error {
+	var err error
+	switch input := input.(type) {
+	case string:
+		data, err := Decode(input)
+		if err != nil {
+			return err
+		}
+		*b = data
+	default:
+		err = fmt.Errorf("unexpected type %T for Bytes", input)
+	}
+	return err
+}
+
 // UnmarshalFixedJSON decodes the input as a string with 0x prefix. The length of out
 // determines the required input length. This function is commonly used to implement the
-// UnmarshalJSON mfafod for fixed-size types.
+// UnmarshalJSON method for fixed-size types.
 func UnmarshalFixedJSON(typ reflect.Type, input, out []byte) error {
 	if !isString(input) {
 		return errNonString(typ)
@@ -73,9 +90,10 @@ func UnmarshalFixedJSON(typ reflect.Type, input, out []byte) error {
 
 // UnmarshalFixedText decodes the input as a string with 0x prefix. The length of out
 // determines the required input length. This function is commonly used to implement the
-// UnmarshalText mfafod for fixed-size types.
+// UnmarshalText method for fixed-size types.
 func UnmarshalFixedText(typname string, input, out []byte) error {
 	raw, err := checkText(input, true)
+	//fmt.Println(raw,`111`)
 	if err != nil {
 		return err
 	}
@@ -94,7 +112,7 @@ func UnmarshalFixedText(typname string, input, out []byte) error {
 
 // UnmarshalFixedUnprefixedText decodes the input as a string with optional 0x prefix. The
 // length of out determines the required input length. This function is commonly used to
-// implement the UnmarshalText mfafod for fixed-size types.
+// implement the UnmarshalText method for fixed-size types.
 func UnmarshalFixedUnprefixedText(typname string, input, out []byte) error {
 	raw, err := checkText(input, false)
 	if err != nil {
@@ -176,6 +194,25 @@ func (b *Big) String() string {
 	return EncodeBig(b.ToInt())
 }
 
+// ImplementsGraphQLType returns true if Big implements the provided GraphQL type.
+func (b Big) ImplementsGraphQLType(name string) bool { return name == "BigInt" }
+
+// UnmarshalGraphQL unmarshals the provided GraphQL query data.
+func (b *Big) UnmarshalGraphQL(input interface{}) error {
+	var err error
+	switch input := input.(type) {
+	case string:
+		return b.UnmarshalText([]byte(input))
+	case int32:
+		var num big.Int
+		num.SetInt64(int64(input))
+		*b = Big(num)
+	default:
+		err = fmt.Errorf("unexpected type %T for BigInt", input)
+	}
+	return err
+}
+
 // Uint64 marshals/unmarshals as a JSON string with 0x prefix.
 // The zero value marshals as "0x0".
 type Uint64 uint64
@@ -223,6 +260,23 @@ func (b Uint64) String() string {
 	return EncodeUint64(uint64(b))
 }
 
+// ImplementsGraphQLType returns true if Uint64 implements the provided GraphQL type.
+func (b Uint64) ImplementsGraphQLType(name string) bool { return name == "Long" }
+
+// UnmarshalGraphQL unmarshals the provided GraphQL query data.
+func (b *Uint64) UnmarshalGraphQL(input interface{}) error {
+	var err error
+	switch input := input.(type) {
+	case string:
+		return b.UnmarshalText([]byte(input))
+	case int32:
+		*b = Uint64(input)
+	default:
+		err = fmt.Errorf("unexpected type %T for Long", input)
+	}
+	return err
+}
+
 // Uint marshals/unmarshals as a JSON string with 0x prefix.
 // The zero value marshals as "0x0".
 type Uint uint
@@ -263,7 +317,8 @@ func isString(input []byte) bool {
 }
 
 func bytesHave0xPrefix(input []byte) bool {
-	return len(input) >= 2 && input[0] == '0' && (input[1] == 'x' || input[1] == 'X')
+	//return len(input) >= 2 && input[0] == 'f'||input[0] == 'F'  && (input[1] == 'x' || input[1] == 'X')
+	return len(input) >= 2 && input[0] == '0'||input[0] == '0'||input[0] == 'f'||input[0] == 'F'  && (input[1] == 'x' || input[1] == 'X')
 }
 
 func checkText(input []byte, wantPrefix bool) ([]byte, error) {
@@ -271,6 +326,7 @@ func checkText(input []byte, wantPrefix bool) ([]byte, error) {
 		return nil, nil // empty strings are allowed
 	}
 	if bytesHave0xPrefix(input) {
+		//fmt.Println(string(input))
 		input = input[2:]
 	} else if wantPrefix {
 		return nil, ErrMissingPrefix

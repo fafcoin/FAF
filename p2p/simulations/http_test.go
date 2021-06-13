@@ -1,6 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package simulations
 
@@ -10,31 +22,30 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/fafereum/go-fafereum/event"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/node"
-	"github.com/fafereum/go-fafereum/p2p"
-	"github.com/fafereum/go-fafereum/p2p/enode"
-	"github.com/fafereum/go-fafereum/p2p/simulations/adapters"
-	"github.com/fafereum/go-fafereum/rpc"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/mattn/go-colorable"
 )
 
-var (
-	loglevel = flag.Int("loglevel", 2, "verbosity of logs")
-)
+func TestMain(m *testing.M) {
+	loglevel := flag.Int("loglevel", 2, "verbosity of logs")
 
-func init() {
 	flag.Parse()
-
 	log.PrintOrigins(true)
-	log.Root().Sfafandler(log.LvlFilterHandler(log.Lvl(*loglevel), log.StreamHandler(colorable.NewColorableStderr(), log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*loglevel), log.StreamHandler(colorable.NewColorableStderr(), log.TerminalFormat(true))))
+	os.Exit(m.Run())
 }
 
 // testService implements the node.Service interface and provides protocols
@@ -53,12 +64,15 @@ type testService struct {
 	state atomic.Value
 }
 
-func newTestService(ctx *adapters.ServiceContext) (node.Service, error) {
+func newTestService(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
 	svc := &testService{
 		id:    ctx.Config.ID,
 		peers: make(map[enode.ID]*testPeer),
 	}
 	svc.state.Store(ctx.Snapshot)
+
+	stack.RegisterProtocols(svc.Protocols())
+	stack.RegisterAPIs(svc.APIs())
 	return svc, nil
 }
 
@@ -115,7 +129,7 @@ func (t *testService) APIs() []rpc.API {
 	}}
 }
 
-func (t *testService) Start(server *p2p.Server) error {
+func (t *testService) Start() error {
 	return nil
 }
 
@@ -277,7 +291,7 @@ func (t *TestAPI) Events(ctx context.Context) (*rpc.Subscription, error) {
 	return rpcSub, nil
 }
 
-var testServices = adapters.Services{
+var testServices = adapters.LifecycleConstructors{
 	"test": newTestService,
 }
 
@@ -409,16 +423,8 @@ type expectEvents struct {
 }
 
 func (t *expectEvents) nodeEvent(id string, up bool) *Event {
-	node := Node{
-		Config: &adapters.NodeConfig{
-			ID: enode.HexID(id),
-		},
-		up: up,
-	}
-	return &Event{
-		Type: EventTypeNode,
-		Node: &node,
-	}
+	config := &adapters.NodeConfig{ID: enode.HexID(id)}
+	return &Event{Type: EventTypeNode, Node: newNode(nil, config, up)}
 }
 
 func (t *expectEvents) connEvent(one, other string, up bool) *Event {
@@ -439,7 +445,7 @@ loop:
 	for {
 		select {
 		case event := <-t.events:
-			t.Logf("received %s event: %s", event.Type, event)
+			t.Logf("received %s event: %v", event.Type, event)
 
 			if event.Type != EventTypeMsg || event.Msg.Received {
 				continue loop
@@ -475,7 +481,7 @@ func (t *expectEvents) expect(events ...*Event) {
 	for {
 		select {
 		case event := <-t.events:
-			t.Logf("received %s event: %s", event.Type, event)
+			t.Logf("received %s event: %v", event.Type, event)
 
 			expected := events[i]
 			if event.Type != expected.Type {
@@ -525,7 +531,7 @@ func (t *expectEvents) expect(events ...*Event) {
 	}
 }
 
-// TestHTTPNodeRPC tests calling RPC mfafods on nodes via the HTTP API
+// TestHTTPNodeRPC tests calling RPC methods on nodes via the HTTP API
 func TestHTTPNodeRPC(t *testing.T) {
 	// start the server
 	_, s := testHTTPServer(t)
@@ -563,13 +569,13 @@ func TestHTTPNodeRPC(t *testing.T) {
 	}
 	defer sub.Unsubscribe()
 
-	// call some RPC mfafods using client 2
+	// call some RPC methods using client 2
 	if err := rpcClient2.CallContext(ctx, nil, "test_add", 10); err != nil {
-		t.Fatalf("error calling RPC mfafod: %s", err)
+		t.Fatalf("error calling RPC method: %s", err)
 	}
 	var result int64
 	if err := rpcClient2.CallContext(ctx, &result, "test_get"); err != nil {
-		t.Fatalf("error calling RPC mfafod: %s", err)
+		t.Fatalf("error calling RPC method: %s", err)
 	}
 	if result != 10 {
 		t.Fatalf("expected result to be 10, got %d", result)

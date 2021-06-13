@@ -1,15 +1,14 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package core
 
 import (
+	"math/big"
 	"math/rand"
 	"testing"
 
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/crypto"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Tests that transactions can be added to strict lists and list contents and
@@ -35,5 +34,23 @@ func TestStrictTxListAdd(t *testing.T) {
 		if list.txs.items[tx.Nonce()] != tx {
 			t.Errorf("item %d: transaction mismatch: have %v, want %v", i, list.txs.items[tx.Nonce()], tx)
 		}
+	}
+}
+
+func BenchmarkTxListAdd(t *testing.B) {
+	// Generate a list of transactions to insert
+	key, _ := crypto.GenerateKey()
+
+	txs := make(types.Transactions, 100000)
+	for i := 0; i < len(txs); i++ {
+		txs[i] = transaction(uint64(i), 0, key)
+	}
+	// Insert the transactions in a random order
+	list := newTxList(true)
+	priceLimit := big.NewInt(int64(DefaultTxPoolConfig.PriceLimit))
+	t.ResetTimer()
+	for _, v := range rand.Perm(len(txs)) {
+		list.Add(txs[v], DefaultTxPoolConfig.PriceBump)
+		list.Filter(priceLimit, DefaultTxPoolConfig.PriceBump)
 	}
 }

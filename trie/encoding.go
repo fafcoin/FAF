@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package trie
 
@@ -10,14 +8,14 @@ package trie
 // input to most API functions.
 //
 // HEX encoding contains one byte for each nibble of the key and an optional trailing
-// 'terminator' byte of value 0x10 which indicates whfafer or not the node at the key
+// 'terminator' byte of value 0x10 which indicates whether or not the node at the key
 // contains a value. Hex key encoding is used for nodes loaded in memory because it's
 // convenient to access.
 //
-// COMPACT encoding is defined by the fafereum Yellow Paper (it's called "hex prefix
+// COMPACT encoding is defined by the Ethereum Yellow Paper (it's called "hex prefix
 // encoding" there) and contains the bytes of the key and a flag. The high nibble of the
 // first byte contains the flag; the lowest bit encoding the oddness of the length and
-// the second-lowest encoding whfafer the node at the key is a value node. The low nibble
+// the second-lowest encoding whether the node at the key is a value node. The low nibble
 // of the first byte is zero in the case of an even number of nibbles and the first nibble
 // in the case of an odd number. All remaining nibbles (now an even number) fit properly
 // into the remaining bytes. Compact encoding is used for nodes stored on disk.
@@ -37,6 +35,35 @@ func hexToCompact(hex []byte) []byte {
 	}
 	decodeNibbles(hex, buf[1:])
 	return buf
+}
+
+// hexToCompactInPlace places the compact key in input buffer, returning the length
+// needed for the representation
+func hexToCompactInPlace(hex []byte) int {
+	var (
+		hexLen    = len(hex) // length of the hex input
+		firstByte = byte(0)
+	)
+	// Check if we have a terminator there
+	if hexLen > 0 && hex[hexLen-1] == 16 {
+		firstByte = 1 << 5
+		hexLen-- // last part was the terminator, ignore that
+	}
+	var (
+		binLen = hexLen/2 + 1
+		ni     = 0 // index in hex
+		bi     = 1 // index in bin (compact)
+	)
+	if hexLen&1 == 1 {
+		firstByte |= 1 << 4 // odd flag
+		firstByte |= hex[0] // first nibble is contained in the first byte
+		ni++
+	}
+	for ; ni < hexLen; bi, ni = bi+1, ni+2 {
+		hex[bi] = hex[ni]<<4 | hex[ni+1]
+	}
+	hex[0] = firstByte
+	return binLen
 }
 
 func compactToHex(compact []byte) []byte {
@@ -98,8 +125,7 @@ func prefixLen(a, b []byte) int {
 	return i
 }
 
-// hasTerm returns whfafer a hex key has the terminator flag.
+// hasTerm returns whether a hex key has the terminator flag.
 func hasTerm(s []byte) bool {
 	return len(s) > 0 && s[len(s)-1] == 16
 }
-

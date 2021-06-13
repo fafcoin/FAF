@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package node
 
@@ -25,17 +23,6 @@ func convertFileLockError(err error) error {
 		return ErrDatadirUsed
 	}
 	return err
-}
-
-// DuplicateServiceError is returned during Node startup if a registered service
-// constructor returns a service of the same type that was already started.
-type DuplicateServiceError struct {
-	Kind reflect.Type
-}
-
-// Error generates a textual representation of the duplicate service error.
-func (e *DuplicateServiceError) Error() string {
-	return fmt.Sprintf("duplicate service: %v", e.Kind)
 }
 
 // StopError is returned if a Node fails to stop either any of its registered

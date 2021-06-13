@@ -1,13 +1,11 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package event_test
 
 import (
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/event"
+	"github.com/ethereum/go-ethereum/event"
 )
 
 func ExampleNewSubscription() {
@@ -18,7 +16,7 @@ func ExampleNewSubscription() {
 			select {
 			case ch <- i:
 			case <-quit:
-				//fmt.Println("unsubscribed")
+				fmt.Println("unsubscribed")
 				return nil
 			}
 		}
@@ -28,7 +26,7 @@ func ExampleNewSubscription() {
 	// This is the consumer. It reads 5 integers, then aborts the subscription.
 	// Note that Unsubscribe waits until the producer has shut down.
 	for i := range ch {
-		//fmt.Println(i)
+		fmt.Println(i)
 		if i == 4 {
 			sub.Unsubscribe()
 			break

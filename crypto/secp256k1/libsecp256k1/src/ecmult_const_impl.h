@@ -48,7 +48,7 @@
  *  - each wnaf[i] is nonzero
  *  - the number of words set is returned; this is always (WNAF_BITS + w - 1) / w
  *
- *  Adapted from `The Width-w NAF Mfafod Provides Small Memory and Fast Elliptic Scalar
+ *  Adapted from `The Width-w NAF Method Provides Small Memory and Fast Elliptic Scalar
  *  Multiplications Secure against Side Channel Attacks`, Okeya and Tagaki. M. Joye (Ed.)
  *  CT-RSA 2003, LNCS 2612, pp. 328-443, 2003. Springer-Verlagy Berlin Heidelberg 2003
  *

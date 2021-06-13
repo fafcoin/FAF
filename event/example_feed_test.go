@@ -1,13 +1,11 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package event_test
 
 import (
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/event"
+	"github.com/ethereum/go-ethereum/event"
 )
 
 func ExampleFeed_acknowledgedEvents() {
@@ -30,7 +28,7 @@ func ExampleFeed_acknowledgedEvents() {
 			for {
 				select {
 				case ev := <-ch:
-					//fmt.Println(ev.i) // "process" the event
+					fmt.Println(ev.i) // "process" the event
 					ev.ack <- struct{}{}
 				case <-done:
 					return

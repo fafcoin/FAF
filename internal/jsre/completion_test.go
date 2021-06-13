@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package jsre
 
@@ -17,10 +15,10 @@ func TestCompleteKeywords(t *testing.T) {
 			this.foo = 3;
 			this.gazonk = {xyz: 4};
 		}
-		theClass.prototype.someMfafod = function () {};
+		theClass.prototype.someMethod = function () {};
   		var x = new theClass();
   		var y = new theClass();
-		y.someMfafod = function override() {};
+		y.someMethod = function override() {};
 	`)
 
 	var tests = []struct {
@@ -28,12 +26,16 @@ func TestCompleteKeywords(t *testing.T) {
 		want  []string
 	}{
 		{
+			input: "St",
+			want:  []string{"String"},
+		},
+		{
 			input: "x",
 			want:  []string{"x."},
 		},
 		{
-			input: "x.someMfafod",
-			want:  []string{"x.someMfafod("},
+			input: "x.someMethod",
+			want:  []string{"x.someMethod("},
 		},
 		{
 			input: "x.",
@@ -41,7 +43,7 @@ func TestCompleteKeywords(t *testing.T) {
 				"x.constructor",
 				"x.foo",
 				"x.gazonk",
-				"x.someMfafod",
+				"x.someMethod",
 			},
 		},
 		{
@@ -50,7 +52,7 @@ func TestCompleteKeywords(t *testing.T) {
 				"y.constructor",
 				"y.foo",
 				"y.gazonk",
-				"y.someMfafod",
+				"y.someMethod",
 			},
 		},
 		{

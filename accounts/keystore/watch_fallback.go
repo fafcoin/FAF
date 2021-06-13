@@ -1,6 +1,9 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
+
+// +build darwin,!cgo ios linux,arm64 windows !darwin,!freebsd,!linux,!netbsd,!solaris
+
+// This is the fallback implementation of directory watching.
+// It is used on unsupported platforms.
 
 package keystore
 

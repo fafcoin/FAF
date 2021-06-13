@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -12,12 +23,12 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/fafereum/go-fafereum/core/state"
-	"github.com/fafereum/go-fafereum/core/vm"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/tests"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/tests"
 
-	cli "gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1"
 )
 
 var stateTestCommand = cli.Command{
@@ -41,15 +52,17 @@ func stateTestCmd(ctx *cli.Context) error {
 	if len(ctx.Args().First()) == 0 {
 		return errors.New("path-to-test argument required")
 	}
-	// Configure the go-fafereum logger
+	// Configure the go-ethereum logger
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
 	glogger.Verbosity(log.Lvl(ctx.GlobalInt(VerbosityFlag.Name)))
-	log.Root().Sfafandler(glogger)
+	log.Root().SetHandler(glogger)
 
 	// Configure the EVM logger
 	config := &vm.LogConfig{
-		DisableMemory: ctx.GlobalBool(DisableMemoryFlag.Name),
-		DisableStack:  ctx.GlobalBool(DisableStackFlag.Name),
+		DisableMemory:     ctx.GlobalBool(DisableMemoryFlag.Name),
+		DisableStack:      ctx.GlobalBool(DisableStackFlag.Name),
+		DisableStorage:    ctx.GlobalBool(DisableStorageFlag.Name),
+		DisableReturnData: ctx.GlobalBool(DisableReturnDataFlag.Name),
 	}
 	var (
 		tracer   vm.Tracer
@@ -85,7 +98,7 @@ func stateTestCmd(ctx *cli.Context) error {
 		for _, st := range test.Subtests() {
 			// Run the test and aggregate the result
 			result := &StatetestResult{Name: key, Fork: st.Fork, Pass: true}
-			state, err := test.Run(st, cfg)
+			_, state, err := test.Run(st, cfg, false)
 			// print state root for evmlab tracing
 			if ctx.GlobalBool(MachineFlag.Name) && state != nil {
 				fmt.Fprintf(os.Stderr, "{\"stateRoot\": \"%x\"}\n", state.IntermediateRoot(false))
@@ -94,7 +107,7 @@ func stateTestCmd(ctx *cli.Context) error {
 				// Test failed, mark as so and dump any state to aid debugging
 				result.Pass, result.Error = false, err.Error()
 				if ctx.GlobalBool(DumpFlag.Name) && state != nil {
-					dump := state.RawDump()
+					dump := state.RawDump(false, false, true)
 					result.State = &dump
 				}
 			}
@@ -111,6 +124,6 @@ func stateTestCmd(ctx *cli.Context) error {
 		}
 	}
 	out, _ := json.MarshalIndent(results, "", "  ")
-	//fmt.Println(string(out))
+	fmt.Println(string(out))
 	return nil
 }

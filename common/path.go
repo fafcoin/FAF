@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package common
@@ -12,7 +9,7 @@ import (
 	"runtime"
 )
 
-// MakeName creates a node name that follows the fafereum convention
+// MakeName creates a node name that follows the ethereum convention
 // for such names. It adds the operation system name and Go runtime version
 // the name.
 func MakeName(name, version string) string {

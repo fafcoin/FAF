@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package miner
 
@@ -8,16 +6,16 @@ import (
 	"container/ring"
 	"sync"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-// chainRetriever is used by the unconfirmed block set to verify whfafer a previously
+// chainRetriever is used by the unconfirmed block set to verify whether a previously
 // mined block is part of the canonical chain or not.
 type chainRetriever interface {
-	// GfafeaderByNumber retrieves the canonical header associated with a block number.
-	GfafeaderByNumber(number uint64) *types.Header
+	// GetHeaderByNumber retrieves the canonical header associated with a block number.
+	GetHeaderByNumber(number uint64) *types.Header
 
 	// GetBlockByNumber retrieves the canonical block associated with a block number.
 	GetBlockByNumber(number uint64) *types.Block
@@ -38,7 +36,7 @@ type unconfirmedBlocks struct {
 	chain  chainRetriever // Blockchain to verify canonical status through
 	depth  uint           // Depth after which to discard previous blocks
 	blocks *ring.Ring     // Block infos to allow canonical chain cross checks
-	lock   sync.RWMutex   // Protects the fields from concurrent access
+	lock   sync.Mutex     // Protects the fields from concurrent access
 }
 
 // newUnconfirmedBlocks returns new data structure to track currently unconfirmed blocks.
@@ -87,14 +85,14 @@ func (set *unconfirmedBlocks) Shift(height uint64) {
 			break
 		}
 		// Block seems to exceed depth allowance, check for canonical status
-		header := set.chain.GfafeaderByNumber(next.index)
+		header := set.chain.GetHeaderByNumber(next.index)
 		switch {
 		case header == nil:
 			log.Warn("Failed to retrieve header of mined block", "number", next.index, "hash", next.hash)
 		case header.Hash() == next.hash:
 			log.Info("🔗 block reached canonical chain", "number", next.index, "hash", next.hash)
 		default:
-			// Block is not canonical, check whfafer we have an uncle or a lost block
+			// Block is not canonical, check whether we have an uncle or a lost block
 			included := false
 			for number := next.index; !included && number < next.index+uint64(set.depth) && number <= height; number++ {
 				if block := set.chain.GetBlockByNumber(number); block != nil {

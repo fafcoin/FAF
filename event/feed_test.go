@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package event
 
@@ -15,8 +13,8 @@ import (
 func TestFeedPanics(t *testing.T) {
 	{
 		var f Feed
-		f.Send(int(2))
-		want := feedTypeError{op: "Send", got: reflect.TypeOf(uint64(0)), want: reflect.TypeOf(int(0))}
+		f.Send(2)
+		want := feedTypeError{op: "Send", got: reflect.TypeOf(uint64(0)), want: reflect.TypeOf(0)}
 		if err := checkPanic(want, func() { f.Send(uint64(2)) }); err != nil {
 			t.Error(err)
 		}
@@ -25,14 +23,14 @@ func TestFeedPanics(t *testing.T) {
 		var f Feed
 		ch := make(chan int)
 		f.Subscribe(ch)
-		want := feedTypeError{op: "Send", got: reflect.TypeOf(uint64(0)), want: reflect.TypeOf(int(0))}
+		want := feedTypeError{op: "Send", got: reflect.TypeOf(uint64(0)), want: reflect.TypeOf(0)}
 		if err := checkPanic(want, func() { f.Send(uint64(2)) }); err != nil {
 			t.Error(err)
 		}
 	}
 	{
 		var f Feed
-		f.Send(int(2))
+		f.Send(2)
 		want := feedTypeError{op: "Subscribe", got: reflect.TypeOf(make(chan uint64)), want: reflect.TypeOf(make(chan<- int))}
 		if err := checkPanic(want, func() { f.Subscribe(make(chan uint64)) }); err != nil {
 			t.Error(err)
@@ -46,7 +44,7 @@ func TestFeedPanics(t *testing.T) {
 	}
 	{
 		var f Feed
-		if err := checkPanic(errBadChannel, func() { f.Subscribe(int(0)) }); err != nil {
+		if err := checkPanic(errBadChannel, func() { f.Subscribe(0) }); err != nil {
 			t.Error(err)
 		}
 	}
@@ -74,6 +72,7 @@ func TestFeed(t *testing.T) {
 		subchan := make(chan int)
 		sub := feed.Subscribe(subchan)
 		timeout := time.NewTimer(2 * time.Second)
+		defer timeout.Stop()
 		subscribed.Done()
 
 		select {

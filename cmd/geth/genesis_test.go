@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2016 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -17,22 +28,6 @@ var customGenesisTests = []struct {
 	query   string
 	result  string
 }{
-	// Plain genesis file without anything extra
-	{
-		genesis: `{
-			"alloc"      : {},
-			"coinbase"   : "0x0000000000000000000000000000000000000000",
-			"difficulty" : "0x20000",
-			"extraData"  : "",
-			"gasLimit"   : "0x2fefd8",
-			"nonce"      : "0x0000000000000042",
-			"mixhash"    : "0x0000000000000000000000000000000000000000000000000000000000000000",
-			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
-			"timestamp"  : "0x00"
-		}`,
-		query:  "faf.getBlock(0).nonce",
-		result: "0x0000000000000042",
-	},
 	// Genesis file with an empty chain configuration (ensure missing fields work)
 	{
 		genesis: `{
@@ -41,14 +36,14 @@ var customGenesisTests = []struct {
 			"difficulty" : "0x20000",
 			"extraData"  : "",
 			"gasLimit"   : "0x2fefd8",
-			"nonce"      : "0x0000000000000042",
+			"nonce"      : "0x0000000000001338",
 			"mixhash"    : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00",
 			"config"     : {}
 		}`,
-		query:  "faf.getBlock(0).nonce",
-		result: "0x0000000000000042",
+		query:  "eth.getBlock(0).nonce",
+		result: "0x0000000000001338",
 	},
 	// Genesis file with specific chain configurations
 	{
@@ -58,22 +53,22 @@ var customGenesisTests = []struct {
 			"difficulty" : "0x20000",
 			"extraData"  : "",
 			"gasLimit"   : "0x2fefd8",
-			"nonce"      : "0x0000000000000042",
+			"nonce"      : "0x0000000000001339",
 			"mixhash"    : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00",
 			"config"     : {
-				"homesteadBlock" : 314,
+				"homesteadBlock" : 42,
 				"daoForkBlock"   : 141,
 				"daoForkSupport" : true
 			}
 		}`,
-		query:  "faf.getBlock(0).nonce",
-		result: "0x0000000000000042",
+		query:  "eth.getBlock(0).nonce",
+		result: "0x0000000000001339",
 	},
 }
 
-// Tests that initializing Gfaf with a custom genesis block and chain definitions
+// Tests that initializing Geth with a custom genesis block and chain definitions
 // work properly.
 func TestCustomGenesis(t *testing.T) {
 	for i, tt := range customGenesisTests {
@@ -86,14 +81,14 @@ func TestCustomGenesis(t *testing.T) {
 		if err := ioutil.WriteFile(json, []byte(tt.genesis), 0600); err != nil {
 			t.Fatalf("test %d: failed to write genesis file: %v", i, err)
 		}
-		runGfaf(t, "--datadir", datadir, "init", json).WaitExit()
+		runGeth(t, "--nousb", "--datadir", datadir, "init", json).WaitExit()
 
 		// Query the custom genesis block
-		gfaf := runGfaf(t,
+		geth := runGeth(t, "--nousb", "--networkid", "1337", "--syncmode=full",
 			"--datadir", datadir, "--maxpeers", "0", "--port", "0",
 			"--nodiscover", "--nat", "none", "--ipcdisable",
 			"--exec", tt.query, "console")
-		gfaf.ExpectRegexp(tt.result)
-		gfaf.ExpectExit()
+		geth.ExpectRegexp(tt.result)
+		geth.ExpectExit()
 	}
 }

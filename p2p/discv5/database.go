@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains the node database, storing previously seen nodes and any collected
 // metadata about them for QoS purposes.
@@ -16,9 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/rlp"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
@@ -46,12 +44,11 @@ var (
 	nodeDBVersionKey = []byte("version") // Version of the database to flush if changes
 	nodeDBItemPrefix = []byte("n:")      // Identifier to prefix node entries with
 
-	nodeDBDiscoverRoot          = ":discover"
-	nodeDBDiscoverPing          = nodeDBDiscoverRoot + ":lastping"
-	nodeDBDiscoverPong          = nodeDBDiscoverRoot + ":lastpong"
-	nodeDBDiscoverFindFails     = nodeDBDiscoverRoot + ":findfail"
-	nodeDBDiscoverLocalEndpoint = nodeDBDiscoverRoot + ":localendpoint"
-	nodeDBTopicRegTickets       = ":tickets"
+	nodeDBDiscoverRoot      = ":discover"
+	nodeDBDiscoverPing      = nodeDBDiscoverRoot + ":lastping"
+	nodeDBDiscoverPong      = nodeDBDiscoverRoot + ":lastpong"
+	nodeDBDiscoverFindFails = nodeDBDiscoverRoot + ":findfail"
+	nodeDBTopicRegTickets   = ":tickets"
 )
 
 // newNodeDB creates a new node database for storing and retrieving infos about
@@ -211,9 +208,9 @@ func (db *nodeDB) deleteNode(id NodeID) error {
 	return nil
 }
 
-// ensureExpirer is a small helper mfafod ensuring that the data expiration
+// ensureExpirer is a small helper method ensuring that the data expiration
 // mechanism is running. If the expiration goroutine is already running, this
-// mfafod simply returns.
+// method simply returns.
 //
 // The goal is to start the data evacuation only after the network successfully
 // bootstrapped itself (to prevent dumping potentially useful seed nodes). Since
@@ -297,20 +294,6 @@ func (db *nodeDB) findFails(id NodeID) int {
 // updateFindFails updates the number of findnode failures since bonding.
 func (db *nodeDB) updateFindFails(id NodeID, fails int) error {
 	return db.storeInt64(makeKey(id, nodeDBDiscoverFindFails), int64(fails))
-}
-
-// localEndpoint returns the last local endpoint communicated to the
-// given remote node.
-func (db *nodeDB) localEndpoint(id NodeID) *rpcEndpoint {
-	var ep rpcEndpoint
-	if err := db.fetchRLP(makeKey(id, nodeDBDiscoverLocalEndpoint), &ep); err != nil {
-		return nil
-	}
-	return &ep
-}
-
-func (db *nodeDB) updateLocalEndpoint(id NodeID, ep rpcEndpoint) error {
-	return db.storeRLP(makeKey(id, nodeDBDiscoverLocalEndpoint), &ep)
 }
 
 // querySeeds retrieves random nodes to be used as potential seed nodes

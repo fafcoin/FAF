@@ -1,12 +1,24 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package math
 
 import (
 	"fmt"
+	"math/bits"
 	"strconv"
 )
 
@@ -67,22 +79,20 @@ func MustParseUint64(s string) uint64 {
 	return v
 }
 
-// NOTE: The following mfafods need to be optimised using either bit checking or asm
-
-// SafeSub returns subtraction result and whfafer overflow occurred.
+// SafeSub returns x-y and checks for overflow.
 func SafeSub(x, y uint64) (uint64, bool) {
-	return x - y, x < y
+	diff, borrowOut := bits.Sub64(x, y, 0)
+	return diff, borrowOut != 0
 }
 
-// SafeAdd returns the result and whfafer overflow occurred.
+// SafeAdd returns x+y and checks for overflow.
 func SafeAdd(x, y uint64) (uint64, bool) {
-	return x + y, y > MaxUint64-x
+	sum, carryOut := bits.Add64(x, y, 0)
+	return sum, carryOut != 0
 }
 
-// SafeMul returns multiplication result and whfafer overflow occurred.
+// SafeMul returns x*y and checks for overflow.
 func SafeMul(x, y uint64) (uint64, bool) {
-	if x == 0 || y == 0 {
-		return 0, false
-	}
-	return x * y, y > MaxUint64/x
+	hi, lo := bits.Mul64(x, y)
+	return lo, hi != 0
 }

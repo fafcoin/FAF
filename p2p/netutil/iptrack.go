@@ -1,13 +1,11 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package netutil
 
 import (
 	"time"
 
-	"github.com/fafereum/go-fafereum/common/mclock"
+	"github.com/ethereum/go-ethereum/common/mclock"
 )
 
 // IPTracker predicts the external endpoint, i.e. IP address and port, of the local host
@@ -46,8 +44,8 @@ func NewIPTracker(window, contactWindow time.Duration, minStatements int) *IPTra
 	}
 }
 
-// PredictFullConeNAT checks whfafer the local host is behind full cone NAT. It predicts by
-// checking whfafer any statement has been received from a node we didn't contact before
+// PredictFullConeNAT checks whether the local host is behind full cone NAT. It predicts by
+// checking whether any statement has been received from a node we didn't contact before
 // the statement was made.
 func (it *IPTracker) PredictFullConeNAT() bool {
 	now := it.clock.Now()

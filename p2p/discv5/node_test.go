@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package discv5
 
@@ -15,8 +13,8 @@ import (
 	"testing/quick"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/crypto"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func ExampleNewNode() {
@@ -24,14 +22,14 @@ func ExampleNewNode() {
 
 	// Complete nodes contain UDP and TCP endpoints:
 	n1 := NewNode(id, net.ParseIP("2001:db8:3c4d:15::abcd:ef12"), 52150, 30303)
-	//fmt.Println("n1:", n1)
-	//fmt.Println("n1.Incomplete() ->", n1.Incomplete())
+	fmt.Println("n1:", n1)
+	fmt.Println("n1.Incomplete() ->", n1.Incomplete())
 
 	// An incomplete node can be created by passing zero values
 	// for all parameters except id.
 	n2 := NewNode(id, nil, 0, 0)
-	//fmt.Println("n2:", n2)
-	//fmt.Println("n2.Incomplete() ->", n2.Incomplete())
+	fmt.Println("n2:", n2)
+	fmt.Println("n2.Incomplete() ->", n2.Incomplete())
 
 	// Output:
 	// n1: enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@[2001:db8:3c4d:15::abcd:ef12]:30303?discport=52150
@@ -129,7 +127,7 @@ var parseNodeTests = []struct {
 	{
 		// This test checks that errors from url.Parse are handled.
 		rawurl:    "://foo",
-		wantError: `parse ://foo: missing protocol scheme`,
+		wantError: `missing protocol scheme`,
 	},
 }
 
@@ -140,7 +138,7 @@ func TestParseNode(t *testing.T) {
 			if err == nil {
 				t.Errorf("test %q:\n  got nil error, expected %#q", test.rawurl, test.wantError)
 				continue
-			} else if err.Error() != test.wantError {
+			} else if !strings.Contains(err.Error(), test.wantError) {
 				t.Errorf("test %q:\n  got error %#q, expected %#q", test.rawurl, err.Error(), test.wantError)
 				continue
 			}
@@ -280,7 +278,7 @@ func quickcfg() *quick.Config {
 	}
 }
 
-// TODO: The Generate mfafod can be dropped when we require Go >= 1.5
+// TODO: The Generate method can be dropped when we require Go >= 1.5
 // because testing/quick learned to generate arrays in 1.5.
 
 func (NodeID) Generate(rand *rand.Rand, size int) reflect.Value {

@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // signFile reads the contents of an input file and signs it (in armored format)
 // with the key provided, placing the signature into the output file.
@@ -18,7 +16,7 @@ import (
 // PGPSignFile parses a PGP private key from the specified string and creates a
 // signature file into the output parameter of the input file.
 //
-// Note, this mfafod assumes a single key will be container in the pgpkey arg,
+// Note, this method assumes a single key will be container in the pgpkey arg,
 // furthermore that it is in armored format.
 func PGPSignFile(input string, output string, pgpkey string) error {
 	// Parse the keyring and make sure we only have a single private key in it

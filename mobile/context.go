@@ -1,18 +1,16 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains all the wrappers from the golang.org/x/net/context package to support
 // client side context management on mobile platforms.
 
-package gfaf
+package geth
 
 import (
 	"context"
 	"time"
 )
 
-// Context carries a deadline, a cancelation signal, and other values across API
+// Context carries a deadline, a cancellation signal, and other values across API
 // boundaries.
 type Context struct {
 	context context.Context

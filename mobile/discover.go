@@ -1,16 +1,14 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 // Contains all the wrappers from the accounts package to support client side enode
 // management on mobile platforms.
 
-package gfaf
+package geth
 
 import (
 	"errors"
 
-	"github.com/fafereum/go-fafereum/p2p/discv5"
+	"github.com/ethereum/go-ethereum/p2p/discv5"
 )
 
 // Enode represents a host on the network.

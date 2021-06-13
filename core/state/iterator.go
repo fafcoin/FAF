@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package state
@@ -9,9 +6,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/rlp"
-	"github.com/fafereum/go-fafereum/trie"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // NodeIterator is an iterator to traverse the entire state trie post-order,
@@ -39,8 +36,8 @@ func NewNodeIterator(state *StateDB) *NodeIterator {
 	}
 }
 
-// Next moves the iterator to the next node, returning whfafer there are any
-// further nodes. In case of an internal error this mfafod returns false and
+// Next moves the iterator to the next node, returning whether there are any
+// further nodes. In case of an internal error this method returns false and
 // sets the Error field to the encountered failure.
 func (it *NodeIterator) Next() bool {
 	// If the iterator failed previously, don't do anything
@@ -118,7 +115,7 @@ func (it *NodeIterator) step() error {
 }
 
 // retrieve pulls and caches the current state entry the iterator is traversing.
-// The mfafod returns whfafer there are any more data left for inspection.
+// The method returns whether there are any more data left for inspection.
 func (it *NodeIterator) retrieve() bool {
 	// Clear out any previously set values
 	it.Hash = common.Hash{}

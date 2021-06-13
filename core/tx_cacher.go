@@ -1,6 +1,3 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 package core
@@ -8,7 +5,7 @@ package core
 import (
 	"runtime"
 
-	"github.com/fafereum/go-fafereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // senderCacher is a concurrent transaction sender recoverer and cacher.

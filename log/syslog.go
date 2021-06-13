@@ -14,9 +14,9 @@ func SyslogHandler(priority syslog.Priority, tag string, fmtr Format) (Handler, 
 	return sharedSyslog(fmtr, wr, err)
 }
 
-// SyslogNfafandler opens a connection to a log daemon over the network and writes
+// SyslogNetHandler opens a connection to a log daemon over the network and writes
 // all log records to it.
-func SyslogNfafandler(net, addr string, priority syslog.Priority, tag string, fmtr Format) (Handler, error) {
+func SyslogNetHandler(net, addr string, priority syslog.Priority, tag string, fmtr Format) (Handler, error) {
 	wr, err := syslog.Dial(net, addr, priority, tag)
 	return sharedSyslog(fmtr, wr, err)
 }
@@ -52,6 +52,6 @@ func (m muster) SyslogHandler(priority syslog.Priority, tag string, fmtr Format)
 	return must(SyslogHandler(priority, tag, fmtr))
 }
 
-func (m muster) SyslogNfafandler(net, addr string, priority syslog.Priority, tag string, fmtr Format) Handler {
-	return must(SyslogNfafandler(net, addr, priority, tag, fmtr))
+func (m muster) SyslogNetHandler(net, addr string, priority syslog.Priority, tag string, fmtr Format) Handler {
+	return must(SyslogNetHandler(net, addr, priority, tag, fmtr))
 }

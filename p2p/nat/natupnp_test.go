@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package nat
 
@@ -176,7 +174,7 @@ type fakeIGD struct {
 	// address of the HTTP server.
 	ssdpResp string
 	// This one should contain XML payloads for all requests
-	// performed. The keys contain mfafod and path, e.g. "GET /foo/bar".
+	// performed. The keys contain method and path, e.g. "GET /foo/bar".
 	// As with ssdpResp, "{{listenAddr}}" is replaced with the TCP
 	// listen address.
 	httpResps map[string]string
@@ -184,7 +182,7 @@ type fakeIGD struct {
 
 // httpu.Handler
 func (dev *fakeIGD) ServeMessage(r *http.Request) {
-	dev.t.Logf(`HTTPU request %s %s`, r.Mfafod, r.RequestURI)
+	dev.t.Logf(`HTTPU request %s %s`, r.Method, r.RequestURI)
 	conn, err := net.Dial("udp4", r.RemoteAddr)
 	if err != nil {
 		fmt.Printf("reply Dial error: %v", err)
@@ -196,11 +194,11 @@ func (dev *fakeIGD) ServeMessage(r *http.Request) {
 
 // http.Handler
 func (dev *fakeIGD) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if resp, ok := dev.httpResps[r.Mfafod+" "+r.RequestURI]; ok {
-		dev.t.Logf(`HTTP request "%s %s" --> %d`, r.Mfafod, r.RequestURI, 200)
+	if resp, ok := dev.httpResps[r.Method+" "+r.RequestURI]; ok {
+		dev.t.Logf(`HTTP request "%s %s" --> %d`, r.Method, r.RequestURI, 200)
 		io.WriteString(w, dev.replaceListenAddr(resp))
 	} else {
-		dev.t.Logf(`HTTP request "%s %s" --> %d`, r.Mfafod, r.RequestURI, 404)
+		dev.t.Logf(`HTTP request "%s %s" --> %d`, r.Method, r.RequestURI, 404)
 		w.WriteHeader(http.StatusNotFound)
 	}
 }

@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package clique
 
@@ -11,17 +22,17 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/core/vm"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // testerAccountPool is a pool to maintain currently active tester accounts,
-// mapped from textual names used in the tests below to actual fafereum private
+// mapped from textual names used in the tests below to actual Ethereum private
 // keys capable of signing transactions.
 type testerAccountPool struct {
 	accounts map[string]*ecdsa.PrivateKey
@@ -46,7 +57,7 @@ func (ap *testerAccountPool) checkpoint(header *types.Header, signers []string) 
 	}
 }
 
-// address retrieves the fafereum address of a tester account by label, creating
+// address retrieves the Ethereum address of a tester account by label, creating
 // a new account if no previous one exists yet.
 func (ap *testerAccountPool) address(account string) common.Address {
 	// Return the zero account for non-addresses
@@ -57,7 +68,7 @@ func (ap *testerAccountPool) address(account string) common.Address {
 	if ap.accounts[account] == nil {
 		ap.accounts[account], _ = crypto.GenerateKey()
 	}
-	// Resolve and return the fafereum address
+	// Resolve and return the Ethereum address
 	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
 }
 
@@ -69,7 +80,7 @@ func (ap *testerAccountPool) sign(header *types.Header, signer string) {
 		ap.accounts[signer], _ = crypto.GenerateKey()
 	}
 	// Sign the header and embed the signature in extra data
-	sig, _ := crypto.Sign(sigHash(header).Bytes(), ap.accounts[signer])
+	sig, _ := crypto.Sign(SealHash(header).Bytes(), ap.accounts[signer])
 	copy(header.Extra[len(header.Extra)-extraSeal:], sig)
 }
 
@@ -235,10 +246,10 @@ func TestClique(t *testing.T) {
 			// Votes from deauthorized signers are discarded immediately (auth votes)
 			signers: []string{"A", "B", "C"},
 			votes: []testerVote{
-				{signer: "C", voted: "B", auth: false},
+				{signer: "C", voted: "D", auth: true},
 				{signer: "A", voted: "C", auth: false},
 				{signer: "B", voted: "C", auth: false},
-				{signer: "A", voted: "B", auth: false},
+				{signer: "A", voted: "D", auth: true},
 			},
 			results: []string{"A", "B"},
 		}, {
@@ -352,7 +363,7 @@ func TestClique(t *testing.T) {
 			failure: errRecentlySigned,
 		}, {
 			// Recent signatures should not reset on checkpoint blocks imported in a new
-			// batch (https://github.com/fafereum/go-fafereum/issues/17593). Whilst this
+			// batch (https://github.com/ethereum/go-ethereum/issues/17593). Whilst this
 			// seems overly specific and weird, it was a Rinkeby consensus split.
 			epoch:   3,
 			signers: []string{"A", "B", "C"},
@@ -389,7 +400,7 @@ func TestClique(t *testing.T) {
 			copy(genesis.ExtraData[extraVanity+j*common.AddressLength:], signer[:])
 		}
 		// Create a pristine blockchain with the genesis injected
-		db := fafdb.NewMemDatabase()
+		db := rawdb.NewMemoryDatabase()
 		genesis.Commit(db)
 
 		// Assemble a chain of headers from the cast votes
@@ -412,7 +423,7 @@ func TestClique(t *testing.T) {
 		})
 		// Iterate through the blocks and seal them individually
 		for j, block := range blocks {
-			// Gfaf the header and prepare it for signing
+			// Get the header and prepare it for signing
 			header := block.Header()
 			if j > 0 {
 				header.ParentHash = blocks[j-1].Hash()
@@ -437,7 +448,7 @@ func TestClique(t *testing.T) {
 			batches[len(batches)-1] = append(batches[len(batches)-1], block)
 		}
 		// Pass all the headers through clique and ensure tallying succeeds
-		chain, err := core.NewBlockChain(db, nil, &config, engine, vm.Config{}, nil)
+		chain, err := core.NewBlockChain(db, nil, &config, engine, vm.Config{}, nil, nil)
 		if err != nil {
 			t.Errorf("test %d: failed to create test chain: %v", i, err)
 			continue

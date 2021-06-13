@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package light
 
@@ -12,19 +10,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/common/math"
-	"github.com/fafereum/go-fafereum/consensus/fafash"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/rawdb"
-	"github.com/fafereum/go-fafereum/core/state"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/core/vm"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/params"
-	"github.com/fafereum/go-fafereum/rlp"
-	"github.com/fafereum/go-fafereum/trie"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
@@ -67,7 +65,7 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 	case *ReceiptsRequest:
 		number := rawdb.ReadHeaderNumber(odr.sdb, req.Hash)
 		if number != nil {
-			req.Receipts = rawdb.ReadReceipts(odr.sdb, req.Hash, *number)
+			req.Receipts = rawdb.ReadRawReceipts(odr.sdb, req.Hash, *number)
 		}
 	case *TrieRequest:
 		t, _ := trie.New(req.Id.Root, trie.NewDatabase(odr.sdb))
@@ -75,7 +73,7 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 		t.Prove(req.Key, 0, nodes)
 		req.Proof = nodes
 	case *CodeRequest:
-		req.Data, _ = odr.sdb.Get(req.Hash[:])
+		req.Data = rawdb.ReadCode(odr.sdb, req.Hash)
 	}
 	req.StoreResult(odr.ldb)
 	return nil
@@ -87,7 +85,7 @@ func (odr *testOdr) IndexerConfig() *IndexerConfig {
 
 type odrTestFn func(ctx context.Context, db fafdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error)
 
-func TestOdrGetBlockLes1(t *testing.T) { testChainOdr(t, 1, odrGetBlock) }
+func TestOdrGetBlockLes2(t *testing.T) { testChainOdr(t, 1, odrGetBlock) }
 
 func odrGetBlock(ctx context.Context, db fafdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error) {
 	var block *types.Block
@@ -103,14 +101,14 @@ func odrGetBlock(ctx context.Context, db fafdb.Database, bc *core.BlockChain, lc
 	return rlp, nil
 }
 
-func TestOdrGetReceiptsLes1(t *testing.T) { testChainOdr(t, 1, odrGetReceipts) }
+func TestOdrGetReceiptsLes2(t *testing.T) { testChainOdr(t, 1, odrGetReceipts) }
 
 func odrGetReceipts(ctx context.Context, db fafdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error) {
 	var receipts types.Receipts
 	if bc != nil {
 		number := rawdb.ReadHeaderNumber(db, bhash)
 		if number != nil {
-			receipts = rawdb.ReadReceipts(db, bhash, *number)
+			receipts = rawdb.ReadReceipts(db, bhash, *number, bc.Config())
 		}
 	} else {
 		number := rawdb.ReadHeaderNumber(db, bhash)
@@ -125,7 +123,7 @@ func odrGetReceipts(ctx context.Context, db fafdb.Database, bc *core.BlockChain,
 	return rlp, nil
 }
 
-func TestOdrAccountsLes1(t *testing.T) { testChainOdr(t, 1, odrAccounts) }
+func TestOdrAccountsLes2(t *testing.T) { testChainOdr(t, 1, odrAccounts) }
 
 func odrAccounts(ctx context.Context, db fafdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error) {
 	dummyAddr := common.HexToAddress("1234567812345678123456781234567812345678")
@@ -133,11 +131,11 @@ func odrAccounts(ctx context.Context, db fafdb.Database, bc *core.BlockChain, lc
 
 	var st *state.StateDB
 	if bc == nil {
-		header := lc.GfafeaderByHash(bhash)
+		header := lc.GetHeaderByHash(bhash)
 		st = NewState(ctx, header, lc.Odr())
 	} else {
-		header := bc.GfafeaderByHash(bhash)
-		st, _ = state.New(header.Root, state.NewDatabase(db))
+		header := bc.GetHeaderByHash(bhash)
+		st, _ = state.New(header.Root, state.NewDatabase(db), nil)
 	}
 
 	var res []byte
@@ -149,7 +147,7 @@ func odrAccounts(ctx context.Context, db fafdb.Database, bc *core.BlockChain, lc
 	return res, st.Error()
 }
 
-func TestOdrContractCallLes1(t *testing.T) { testChainOdr(t, 1, odrContractCall) }
+func TestOdrContractCallLes2(t *testing.T) { testChainOdr(t, 1, odrContractCall) }
 
 type callmsg struct {
 	types.Message
@@ -172,22 +170,23 @@ func odrContractCall(ctx context.Context, db fafdb.Database, bc *core.BlockChain
 		)
 		if bc == nil {
 			chain = lc
-			header = lc.GfafeaderByHash(bhash)
+			header = lc.GetHeaderByHash(bhash)
 			st = NewState(ctx, header, lc.Odr())
 		} else {
 			chain = bc
-			header = bc.GfafeaderByHash(bhash)
-			st, _ = state.New(header.Root, state.NewDatabase(db))
+			header = bc.GetHeaderByHash(bhash)
+			st, _ = state.New(header.Root, state.NewDatabase(db), nil)
 		}
 
 		// Perform read-only call.
 		st.SetBalance(testBankAddress, math.MaxBig256)
 		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), data, false)}
-		context := core.NewEVMContext(msg, header, chain, nil)
-		vmenv := vm.NewEVM(context, st, config, vm.Config{})
+		txContext := core.NewEVMTxContext(msg)
+		context := core.NewEVMBlockContext(header, chain, nil)
+		vmenv := vm.NewEVM(context, txContext, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
-		ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp)
-		res = append(res, ret...)
+		result, _ := core.ApplyMessage(vmenv, msg, gp)
+		res = append(res, result.Return()...)
 		if st.Error() != nil {
 			return res, st.Error()
 		}
@@ -199,11 +198,11 @@ func testChainGen(i int, block *core.BlockGen) {
 	signer := types.HomesteadSigner{}
 	switch i {
 	case 0:
-		// In block 1, the test bank sends account #1 some fafer.
+		// In block 1, the test bank sends account #1 some ether.
 		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil), signer, testBankKey)
 		block.AddTx(tx)
 	case 1:
-		// In block 2, the test bank sends some more fafer to account #1.
+		// In block 2, the test bank sends some more ether to account #1.
 		// acc1Addr passes it on to account #2.
 		// acc1Addr creates a test contract.
 		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, testBankKey)
@@ -238,21 +237,21 @@ func testChainGen(i int, block *core.BlockGen) {
 
 func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	var (
-		sdb     = fafdb.NewMemDatabase()
-		ldb     = fafdb.NewMemDatabase()
+		sdb     = rawdb.NewMemoryDatabase()
+		ldb     = rawdb.NewMemoryDatabase()
 		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
 		genesis = gspec.MustCommit(sdb)
 	)
 	gspec.MustCommit(ldb)
 	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, fafash.NewFullFaker(), vm.Config{}, nil)
-	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, fafash.NewFaker(), sdb, 4, testChainGen)
+	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), sdb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		t.Fatal(err)
 	}
 
 	odr := &testOdr{sdb: sdb, ldb: ldb, indexerConfig: TestClientIndexerConfig}
-	lightchain, err := NewLightChain(odr, params.TestChainConfig, fafash.NewFullFaker())
+	lightchain, err := NewLightChain(odr, params.TestChainConfig, ethash.NewFullFaker(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

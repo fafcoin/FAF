@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -9,7 +20,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fafereum/go-fafereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/internal/flags"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -19,11 +30,12 @@ const (
 
 // Git SHA1 commit hash of the release (set via linker flags)
 var gitCommit = ""
+var gitDate = ""
 
 var app *cli.App
 
 func init() {
-	app = utils.NewApp(gitCommit, "an fafereum key manager")
+	app = flags.NewApp(gitCommit, gitDate, "an Ethereum key manager")
 	app.Commands = []cli.Command{
 		commandGenerate,
 		commandInspect,
@@ -31,13 +43,14 @@ func init() {
 		commandSignMessage,
 		commandVerifyMessage,
 	}
+	cli.CommandHelpTemplate = flags.OriginCommandHelpTemplate
 }
 
 // Commonly used command line flags.
 var (
 	passphraseFlag = cli.StringFlag{
 		Name:  "passwordfile",
-		Usage: "the file that contains the passphrase for the keyfile",
+		Usage: "the file that contains the password for the keyfile",
 	}
 	jsonFlag = cli.BoolFlag{
 		Name:  "json",

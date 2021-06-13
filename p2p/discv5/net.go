@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package discv5
 
@@ -12,12 +10,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/common/mclock"
-	"github.com/fafereum/go-fafereum/crypto"
-	"github.com/fafereum/go-fafereum/log"
-	"github.com/fafereum/go-fafereum/p2p/netutil"
-	"github.com/fafereum/go-fafereum/rlp"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/netutil"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -65,14 +63,6 @@ type Network struct {
 	nursery       []*Node
 	nodes         map[NodeID]*Node // tracks active nodes with state != known
 	timeoutTimers map[timeoutEvent]*time.Timer
-
-	// Revalidation queues.
-	// Nodes put on these queues will be pinged eventually.
-	slowRevalidateQueue []*Node
-	fastRevalidateQueue []*Node
-
-	// Buffers for state transition.
-	sendBuf []*ingressPacket
 }
 
 // transport is implemented by the UDP transport.
@@ -92,10 +82,9 @@ type transport interface {
 }
 
 type findnodeQuery struct {
-	remote   *Node
-	target   common.Hash
-	reply    chan<- []*Node
-	nresults int // counter for received nodes
+	remote *Node
+	target common.Hash
+	reply  chan<- []*Node
 }
 
 type topicRegisterReq struct {
@@ -354,6 +343,8 @@ func (net *Network) loop() {
 		bucketRefreshTimer = time.NewTimer(bucketRefreshInterval)
 		refreshDone        chan struct{} // closed when the 'refresh' lookup has ended
 	)
+	defer refreshTimer.Stop()
+	defer bucketRefreshTimer.Stop()
 
 	// Tracking the next ticket to register.
 	var (
@@ -390,11 +381,13 @@ func (net *Network) loop() {
 		searchInfo                = make(map[Topic]topicSearchInfo)
 		activeSearchCount         int
 	)
+	defer topicRegisterLookupTick.Stop()
 	topicSearchLookupDone := make(chan topicSearchResult, 100)
 	topicSearch := make(chan Topic, 100)
 	<-topicRegisterLookupTick.C
 
 	statsDump := time.NewTicker(10 * time.Second)
+	defer statsDump.Stop()
 
 loop:
 	for {
@@ -407,7 +400,7 @@ loop:
 
 		// Ingress packet handling.
 		case pkt := <-net.read:
-			////fmt.Println("read", pkt.ev)
+			//fmt.Println("read", pkt.ev)
 			log.Trace("<-net.read")
 			n := net.internNode(&pkt)
 			prestate := n.state
@@ -501,7 +494,7 @@ loop:
 		case <-nextRegisterTime:
 			log.Trace("<-nextRegisterTime")
 			net.ticketStore.ticketRegistered(*nextTicket)
-			////fmt.Println("sendTopicRegister", nextTicket.t.node.addr().String(), nextTicket.t.topics, nextTicket.idx, nextTicket.t.pong)
+			//fmt.Println("sendTopicRegister", nextTicket.t.node.addr().String(), nextTicket.t.topics, nextTicket.idx, nextTicket.t.pong)
 			net.conn.sendTopicRegister(nextTicket.t.node, nextTicket.t.topics, nextTicket.idx, nextTicket.t.pong)
 
 		case req := <-net.topicSearchReq:
@@ -634,14 +627,14 @@ loop:
 	}
 	log.Trace("loop stopped")
 
-	log.Debug(fmt.Sprintf("shutting down"))
+	log.Debug("shutting down")
 	if net.conn != nil {
 		net.conn.Close()
 	}
-	if refreshDone != nil {
-		// TODO: wait for pending refresh.
-		//<-refreshResults
-	}
+	// TODO: wait for pending refresh.
+	// if refreshDone != nil {
+	// 	<-refreshResults
+	// }
 	// Cancel all pending timeouts.
 	for _, timer := range net.timeoutTimers {
 		timer.Stop()
@@ -682,7 +675,7 @@ func (net *Network) refresh(done chan<- struct{}) {
 		if n.state == unknown {
 			net.transition(n, verifyinit)
 		}
-		// Force-add the seed node so Lookup does somfafing.
+		// Force-add the seed node so Lookup does something.
 		// It will be deleted again if verification fails.
 		net.tab.add(n)
 	}
@@ -1015,10 +1008,10 @@ func init() {
 
 // handle processes packets sent by n and events related to n.
 func (net *Network) handle(n *Node, ev nodeEvent, pkt *ingressPacket) error {
-	////fmt.Println("handle", n.addr().String(), n.state, ev)
+	//fmt.Println("handle", n.addr().String(), n.state, ev)
 	if pkt != nil {
 		if err := net.checkPacket(n, ev, pkt); err != nil {
-			////fmt.Println("check err:", err)
+			//fmt.Println("check err:", err)
 			return err
 		}
 		// Start the background expiration goroutine after the first
@@ -1030,12 +1023,15 @@ func (net *Network) handle(n *Node, ev nodeEvent, pkt *ingressPacket) error {
 			net.db.ensureExpirer()
 		}
 	}
+	if ev == pongTimeout {
+		n.pingEcho = nil // clean up if pongtimeout
+	}
 	if n.state == nil {
 		n.state = unknown //???
 	}
 	next, err := n.state.handle(net, n, ev, pkt)
 	net.transition(n, next)
-	////fmt.Println("new state:", n.state)
+	//fmt.Println("new state:", n.state)
 	return err
 }
 
@@ -1047,7 +1043,7 @@ func (net *Network) checkPacket(n *Node, ev nodeEvent, pkt *ingressPacket) error
 		// TODO: check ping version
 	case pongPacket:
 		if !bytes.Equal(pkt.data.(*pong).ReplyTok, n.pingEcho) {
-			// //fmt.Println("pong reply token mismatch")
+			// fmt.Println("pong reply token mismatch")
 			return fmt.Errorf("pong reply token mismatch")
 		}
 		n.pingEcho = nil
@@ -1091,9 +1087,9 @@ func (net *Network) abortTimedEvent(n *Node, ev nodeEvent) {
 }
 
 func (net *Network) ping(n *Node, addr *net.UDPAddr) {
-	////fmt.Println("ping", n.addr().String(), n.ID.String(), n.sha.Hex())
+	//fmt.Println("ping", n.addr().String(), n.ID.String(), n.sha.Hex())
 	if n.pingEcho != nil || n.ID == net.tab.self.ID {
-		////fmt.Println(" not sent")
+		//fmt.Println(" not sent")
 		return
 	}
 	log.Trace("Pinging remote node", "node", n.ID)
@@ -1161,11 +1157,11 @@ func (net *Network) handleQueryEvent(n *Node, ev nodeEvent, pkt *ingressPacket) 
 		net.conn.sendNeighbours(n, results)
 		return n.state, nil
 	case topicRegisterPacket:
-		////fmt.Println("got topicRegisterPacket")
+		//fmt.Println("got topicRegisterPacket")
 		regdata := pkt.data.(*topicRegister)
 		pong, err := net.checkTopicRegister(regdata)
 		if err != nil {
-			////fmt.Println(err)
+			//fmt.Println(err)
 			return n.state, fmt.Errorf("bad waiting ticket: %v", err)
 		}
 		net.topictab.useTicket(n, pong.TicketSerial, regdata.Topics, int(regdata.Idx), pong.Expiration, pong.WaitPeriods)

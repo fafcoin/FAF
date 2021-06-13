@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package misc
 
@@ -9,13 +7,13 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/fafereum/go-fafereum/core/state"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/params"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
-	// ErrBadProDAOExtra is returned if a header doens't support the DAO fork on a
+	// ErrBadProDAOExtra is returned if a header doesn't support the DAO fork on a
 	// pro-fork client.
 	ErrBadProDAOExtra = errors.New("bad DAO pro-fork extra-data")
 
@@ -42,7 +40,7 @@ func VerifyDAOHeaderExtraData(config *params.ChainConfig, header *types.Header) 
 	if header.Number.Cmp(config.DAOForkBlock) < 0 || header.Number.Cmp(limit) >= 0 {
 		return nil
 	}
-	// Depending on whfafer we support or oppose the fork, validate the extra-data contents
+	// Depending on whether we support or oppose the fork, validate the extra-data contents
 	if config.DAOForkSupport {
 		if !bytes.Equal(header.Extra, params.DAOForkBlockExtra) {
 			return ErrBadProDAOExtra

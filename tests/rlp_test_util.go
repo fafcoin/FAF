@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package tests
 
@@ -12,13 +10,13 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/rlp"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // RLPTest is the JSON structure of a single RLP test.
 type RLPTest struct {
 	// If the value of In is "INVALID" or "VALID", the test
-	// checks whfafer Out can be decoded into a value of
+	// checks whether Out can be decoded into a value of
 	// type interface{}.
 	//
 	// For other JSON values, In is treated as a driver for
@@ -55,7 +53,7 @@ func (t *RLPTest) Run() error {
 		return checkDecodeInterface(outb, t.In == "VALID")
 	}
 
-	// Check whfafer encoding the value produces the same bytes.
+	// Check whether encoding the value produces the same bytes.
 	in := translateJSON(t.In)
 	b, err := rlp.EncodeToBytes(in)
 	if err != nil {

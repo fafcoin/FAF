@@ -1,6 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package params
 
@@ -17,8 +29,8 @@ func TestCheckCompatible(t *testing.T) {
 		wantErr     *ConfigCompatError
 	}
 	tests := []test{
-		{stored: AllfafashProtocolChanges, new: AllfafashProtocolChanges, head: 0, wantErr: nil},
-		{stored: AllfafashProtocolChanges, new: AllfafashProtocolChanges, head: 100, wantErr: nil},
+		{stored: AllEthashProtocolChanges, new: AllEthashProtocolChanges, head: 0, wantErr: nil},
+		{stored: AllEthashProtocolChanges, new: AllEthashProtocolChanges, head: 100, wantErr: nil},
 		{
 			stored:  &ChainConfig{EIP150Block: big.NewInt(10)},
 			new:     &ChainConfig{EIP150Block: big.NewInt(20)},
@@ -26,7 +38,7 @@ func TestCheckCompatible(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			stored: AllfafashProtocolChanges,
+			stored: AllEthashProtocolChanges,
 			new:    &ChainConfig{HomesteadBlock: nil},
 			head:   3,
 			wantErr: &ConfigCompatError{
@@ -37,7 +49,7 @@ func TestCheckCompatible(t *testing.T) {
 			},
 		},
 		{
-			stored: AllfafashProtocolChanges,
+			stored: AllEthashProtocolChanges,
 			new:    &ChainConfig{HomesteadBlock: big.NewInt(1)},
 			head:   3,
 			wantErr: &ConfigCompatError{
@@ -56,6 +68,23 @@ func TestCheckCompatible(t *testing.T) {
 				StoredConfig: big.NewInt(10),
 				NewConfig:    big.NewInt(20),
 				RewindTo:     9,
+			},
+		},
+		{
+			stored:  &ChainConfig{ConstantinopleBlock: big.NewInt(30)},
+			new:     &ChainConfig{ConstantinopleBlock: big.NewInt(30), PetersburgBlock: big.NewInt(30)},
+			head:    40,
+			wantErr: nil,
+		},
+		{
+			stored: &ChainConfig{ConstantinopleBlock: big.NewInt(30)},
+			new:    &ChainConfig{ConstantinopleBlock: big.NewInt(30), PetersburgBlock: big.NewInt(31)},
+			head:   40,
+			wantErr: &ConfigCompatError{
+				What:         "Petersburg fork block",
+				StoredConfig: nil,
+				NewConfig:    big.NewInt(31),
+				RewindTo:     30,
 			},
 		},
 	}

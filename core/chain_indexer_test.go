@@ -1,6 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package core
 
@@ -12,10 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core/rawdb"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/fafdb"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Runs multiple tests with randomized parameters.
@@ -37,7 +48,7 @@ func TestChainIndexerWithChildren(t *testing.T) {
 // multiple backends. The section size and required confirmation count parameters
 // are randomized.
 func testChainIndexer(t *testing.T, count int) {
-	db := fafdb.NewMemDatabase()
+	db := rawdb.NewMemoryDatabase()
 	defer db.Close()
 
 	// Create a chain of indexers and ensure they all report empty
@@ -48,7 +59,7 @@ func testChainIndexer(t *testing.T, count int) {
 			confirmsReq = uint64(rand.Intn(10))
 		)
 		backends[i] = &testChainIndexBackend{t: t, processCh: make(chan uint64)}
-		backends[i].indexer = NewChainIndexer(db, fafdb.NewTable(db, string([]byte{byte(i)})), backends[i], sectionSize, confirmsReq, 0, fmt.Sprintf("indexer-%d", i))
+		backends[i].indexer = NewChainIndexer(db, rawdb.NewTable(db, string([]byte{byte(i)})), backends[i], sectionSize, confirmsReq, 0, fmt.Sprintf("indexer-%d", i))
 
 		if sections, _, _ := backends[i].indexer.Sections(); sections != 0 {
 			t.Fatalf("Canonical section count mismatch: have %v, want %v", sections, 0)
@@ -192,7 +203,7 @@ func (b *testChainIndexBackend) assertBlocks(headNum, failNum uint64) (uint64, b
 }
 
 func (b *testChainIndexBackend) reorg(headNum uint64) uint64 {
-	firstChanged := headNum / b.indexer.sectionSize
+	firstChanged := (headNum + 1) / b.indexer.sectionSize
 	if firstChanged < b.stored {
 		b.stored = firstChanged
 	}
@@ -223,5 +234,9 @@ func (b *testChainIndexBackend) Commit() error {
 	if b.headerCnt != b.indexer.sectionSize {
 		b.t.Error("Not enough headers processed")
 	}
+	return nil
+}
+
+func (b *testChainIndexBackend) Prune(threshold uint64) error {
 	return nil
 }

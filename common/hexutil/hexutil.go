@@ -1,11 +1,8 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
 
 
 /*
 Package hexutil implements hex encoding with 0x prefix.
-This encoding is used by the fafereum RPC API to transport binary data in JSON payloads.
+This encoding is used by the Ethereum RPC API to transport binary data in JSON payloads.
 
 Encoding Rules
 
@@ -51,6 +48,7 @@ func Decode(input string) ([]byte, error) {
 		return nil, ErrEmptyString
 	}
 	if !has0xPrefix(input) {
+		fmt.Print(`input`,input)
 		return nil, ErrMissingPrefix
 	}
 	b, err := hex.DecodeString(input[2:])
@@ -62,6 +60,7 @@ func Decode(input string) ([]byte, error) {
 
 // MustDecode decodes a hex string with 0x prefix. It panics for invalid input.
 func MustDecode(input string) []byte {
+	fmt.Println(input)
 	dec, err := Decode(input)
 	if err != nil {
 		panic(err)
@@ -175,7 +174,7 @@ func EncodeBig(bigint *big.Int) string {
 }
 
 func has0xPrefix(input string) bool {
-	return len(input) >= 2 && input[0] == '0' && (input[1] == 'x' || input[1] == 'X')
+	return len(input) >= 2 && input[0] == '0'&& (input[1] == 'x' || input[1] == 'X')
 }
 
 func checkNumber(input string) (raw string, err error) {

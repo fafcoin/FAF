@@ -1,21 +1,20 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package light
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/consensus/fafash"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/rawdb"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/fafdb"
-	"github.com/fafereum/go-fafereum/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/fafdb"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // So we can deterministically seed different blockchains
@@ -26,7 +25,7 @@ var (
 
 // makeHeaderChain creates a deterministic chain of headers rooted at parent.
 func makeHeaderChain(parent *types.Header, n int, db fafdb.Database, seed int) []*types.Header {
-	blocks, _ := core.GenerateChain(params.TestChainConfig, types.NewBlockWithHeader(parent), fafash.NewFaker(), db, n, func(i int, b *core.BlockGen) {
+	blocks, _ := core.GenerateChain(params.TestChainConfig, types.NewBlockWithHeader(parent), ethash.NewFaker(), db, n, func(i int, b *core.BlockGen) {
 		b.SetCoinbase(common.Address{0: byte(seed), 19: byte(i)})
 	})
 	headers := make([]*types.Header, len(blocks))
@@ -40,10 +39,10 @@ func makeHeaderChain(parent *types.Header, n int, db fafdb.Database, seed int) [
 // chain. Depending on the full flag, if creates either a full block chain or a
 // header only chain.
 func newCanonical(n int) (fafdb.Database, *LightChain, error) {
-	db := fafdb.NewMemDatabase()
+	db := rawdb.NewMemoryDatabase()
 	gspec := core.Genesis{Config: params.TestChainConfig}
 	genesis := gspec.MustCommit(db)
-	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, fafash.NewFaker())
+	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, ethash.NewFaker(), nil)
 
 	// Create and inject the requested chain
 	if n == 0 {
@@ -57,13 +56,13 @@ func newCanonical(n int) (fafdb.Database, *LightChain, error) {
 
 // newTestLightChain creates a LightChain that doesn't validate anything.
 func newTestLightChain() *LightChain {
-	db := fafdb.NewMemDatabase()
+	db := rawdb.NewMemoryDatabase()
 	gspec := &core.Genesis{
 		Difficulty: big.NewInt(1),
 		Config:     params.TestChainConfig,
 	}
 	gspec.MustCommit(db)
-	lc, err := NewLightChain(&dummyOdr{db: db}, gspec.Config, fafash.NewFullFaker())
+	lc, err := NewLightChain(&dummyOdr{db: db}, gspec.Config, ethash.NewFullFaker(), nil)
 	if err != nil {
 		panic(err)
 	}
@@ -79,8 +78,8 @@ func testFork(t *testing.T, LightChain *LightChain, i, n int, comparator func(td
 	}
 	// Assert the chains have the same header/block at #i
 	var hash1, hash2 common.Hash
-	hash1 = LightChain.GfafeaderByNumber(uint64(i)).Hash()
-	hash2 = LightChain2.GfafeaderByNumber(uint64(i)).Hash()
+	hash1 = LightChain.GetHeaderByNumber(uint64(i)).Hash()
+	hash2 = LightChain2.GetHeaderByNumber(uint64(i)).Hash()
 	if hash1 != hash2 {
 		t.Errorf("chain content mismatch at %d: have hash %v, want hash %v", i, hash2, hash1)
 	}
@@ -110,10 +109,10 @@ func testHeaderChainImport(chain []*types.Header, lightchain *LightChain) error 
 			return err
 		}
 		// Manually insert the header into the database, but don't reorganize (allows subsequent testing)
-		lightchain.mu.Lock()
+		lightchain.chainmu.Lock()
 		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.Number.Uint64(), new(big.Int).Add(header.Difficulty, lightchain.GetTdByHash(header.ParentHash)))
 		rawdb.WriteHeader(lightchain.chainDb, header)
-		lightchain.mu.Unlock()
+		lightchain.chainmu.Unlock()
 	}
 	return nil
 }
@@ -289,7 +288,7 @@ func testReorg(t *testing.T, first, second []int, td int64) {
 	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, second, 22), 1)
 	// Check that the chain is valid number and link wise
 	prev := bc.CurrentHeader()
-	for header := bc.GfafeaderByNumber(bc.CurrentHeader().Number.Uint64() - 1); header.Number.Uint64() != 0; prev, header = header, bc.GfafeaderByNumber(header.Number.Uint64()-1) {
+	for header := bc.GetHeaderByNumber(bc.CurrentHeader().Number.Uint64() - 1); header.Number.Uint64() != 0; prev, header = header, bc.GetHeaderByNumber(header.Number.Uint64()-1) {
 		if prev.ParentHash != header.Hash() {
 			t.Errorf("parent header hash mismatch: have %x, want %x", prev.ParentHash, header.Hash())
 		}
@@ -309,7 +308,7 @@ func TestBadHeaderHashes(t *testing.T) {
 	var err error
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 4}, 10)
 	core.BadHashes[headers[2].Hash()] = true
-	if _, err = bc.InsertHeaderChain(headers, 1); err != core.ErrBlacklistedHash {
+	if _, err = bc.InsertHeaderChain(headers, 1); !errors.Is(err, core.ErrBlacklistedHash) {
 		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBlacklistedHash)
 	}
 }
@@ -332,7 +331,7 @@ func TestReorgBadHeaderHashes(t *testing.T) {
 	defer func() { delete(core.BadHashes, headers[3].Hash()) }()
 
 	// Create a new LightChain and check that it rolled back the state.
-	ncm, err := NewLightChain(&dummyOdr{db: bc.chainDb}, params.TestChainConfig, fafash.NewFaker())
+	ncm, err := NewLightChain(&dummyOdr{db: bc.chainDb}, params.TestChainConfig, ethash.NewFaker(), nil)
 	if err != nil {
 		t.Fatalf("failed to create new chain manager: %v", err)
 	}

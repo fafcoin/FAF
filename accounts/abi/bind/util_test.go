@@ -1,21 +1,20 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package bind_test
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
 
-	"github.com/fafereum/go-fafereum/accounts/abi/bind"
-	"github.com/fafereum/go-fafereum/accounts/abi/bind/backends"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/core"
-	"github.com/fafereum/go-fafereum/core/types"
-	"github.com/fafereum/go-fafereum/crypto"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -44,8 +43,10 @@ func TestWaitDeployed(t *testing.T) {
 		backend := backends.NewSimulatedBackend(
 			core.GenesisAlloc{
 				crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000)},
-			}, 10000000,
+			},
+			10000000,
 		)
+		defer backend.Close()
 
 		// Create the transaction.
 		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, big.NewInt(1), common.FromHex(test.code))
@@ -70,7 +71,7 @@ func TestWaitDeployed(t *testing.T) {
 		select {
 		case <-mined:
 			if err != test.wantErr {
-				t.Errorf("test %q: error mismatch: got %q, want %q", name, err, test.wantErr)
+				t.Errorf("test %q: error mismatch: want %q, got %q", name, test.wantErr, err)
 			}
 			if address != test.wantAddress {
 				t.Errorf("test %q: unexpected contract address %s", name, address.Hex())
@@ -79,4 +80,41 @@ func TestWaitDeployed(t *testing.T) {
 			t.Errorf("test %q: timeout", name)
 		}
 	}
+}
+
+func TestWaitDeployedCornerCases(t *testing.T) {
+	backend := backends.NewSimulatedBackend(
+		core.GenesisAlloc{
+			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000)},
+		},
+		10000000,
+	)
+	defer backend.Close()
+
+	// Create a transaction to an account.
+	code := "6060604052600a8060106000396000f360606040526008565b00"
+	tx := types.NewTransaction(0, common.HexToAddress("0x01"), big.NewInt(0), 3000000, big.NewInt(1), common.FromHex(code))
+	tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	backend.SendTransaction(ctx, tx)
+	backend.Commit()
+	notContentCreation := errors.New("tx is not contract creation")
+	if _, err := bind.WaitDeployed(ctx, backend, tx); err.Error() != notContentCreation.Error() {
+		t.Errorf("error missmatch: want %q, got %q, ", notContentCreation, err)
+	}
+
+	// Create a transaction that is not mined.
+	tx = types.NewContractCreation(1, big.NewInt(0), 3000000, big.NewInt(1), common.FromHex(code))
+	tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
+
+	go func() {
+		contextCanceled := errors.New("context canceled")
+		if _, err := bind.WaitDeployed(ctx, backend, tx); err.Error() != contextCanceled.Error() {
+			t.Errorf("error missmatch: want %q, got %q, ", contextCanceled, err)
+		}
+	}()
+
+	backend.SendTransaction(ctx, tx)
+	cancel()
 }

@@ -1,6 +1,4 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+
 
 package discv5
 
@@ -93,8 +91,8 @@ func TestNodeDBFetchStore(t *testing.T) {
 	node := NewNode(
 		MustHexID("0x1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
 		net.IP{192, 168, 0, 1},
-		30606,
-		30606,
+		30303,
+		30303,
 	)
 	inst := time.Now()
 	num := 314
@@ -156,8 +154,8 @@ var nodeDBSeedQueryNodes = []struct {
 		node: NewNode(
 			MustHexID("0x84d9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
 			net.IP{127, 0, 0, 3},
-			30606,
-			30606,
+			30303,
+			30303,
 		),
 		pong: time.Now().Add(-3 * time.Hour),
 	},

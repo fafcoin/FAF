@@ -1,6 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
+// Copyright 2017 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package keystore
 
@@ -11,12 +23,15 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/fafereum/go-fafereum/accounts"
-	"github.com/fafereum/go-fafereum/common"
-	"github.com/fafereum/go-fafereum/event"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/event"
 )
 
 var testSigData = make([]byte, 32)
@@ -321,9 +336,93 @@ func TestWalletNotifications(t *testing.T) {
 
 	// Shut down the event collector and check events.
 	sub.Unsubscribe()
-	<-updates
+	for ev := range updates {
+		events = append(events, walletEvent{ev, ev.Wallet.Accounts()[0]})
+	}
 	checkAccounts(t, live, ks.Wallets())
 	checkEvents(t, wantEvents, events)
+}
+
+// TestImportExport tests the import functionality of a keystore.
+func TestImportECDSA(t *testing.T) {
+	dir, ks := tmpKeyStore(t, true)
+	defer os.RemoveAll(dir)
+	key, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", key)
+	}
+	if _, err = ks.ImportECDSA(key, "old"); err != nil {
+		t.Errorf("importing failed: %v", err)
+	}
+	if _, err = ks.ImportECDSA(key, "old"); err == nil {
+		t.Errorf("importing same key twice succeeded")
+	}
+	if _, err = ks.ImportECDSA(key, "new"); err == nil {
+		t.Errorf("importing same key twice succeeded")
+	}
+}
+
+// TestImportECDSA tests the import and export functionality of a keystore.
+func TestImportExport(t *testing.T) {
+	dir, ks := tmpKeyStore(t, true)
+	defer os.RemoveAll(dir)
+	acc, err := ks.NewAccount("old")
+	if err != nil {
+		t.Fatalf("failed to create account: %v", acc)
+	}
+	json, err := ks.Export(acc, "old", "new")
+	if err != nil {
+		t.Fatalf("failed to export account: %v", acc)
+	}
+	dir2, ks2 := tmpKeyStore(t, true)
+	defer os.RemoveAll(dir2)
+	if _, err = ks2.Import(json, "old", "old"); err == nil {
+		t.Errorf("importing with invalid password succeeded")
+	}
+	acc2, err := ks2.Import(json, "new", "new")
+	if err != nil {
+		t.Errorf("importing failed: %v", err)
+	}
+	if acc.Address != acc2.Address {
+		t.Error("imported account does not match exported account")
+	}
+	if _, err = ks2.Import(json, "new", "new"); err == nil {
+		t.Errorf("importing a key twice succeeded")
+	}
+
+}
+
+// TestImportRace tests the keystore on races.
+// This test should fail under -race if importing races.
+func TestImportRace(t *testing.T) {
+	dir, ks := tmpKeyStore(t, true)
+	defer os.RemoveAll(dir)
+	acc, err := ks.NewAccount("old")
+	if err != nil {
+		t.Fatalf("failed to create account: %v", acc)
+	}
+	json, err := ks.Export(acc, "old", "new")
+	if err != nil {
+		t.Fatalf("failed to export account: %v", acc)
+	}
+	dir2, ks2 := tmpKeyStore(t, true)
+	defer os.RemoveAll(dir2)
+	var atom uint32
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer wg.Done()
+			if _, err := ks2.Import(json, "new", "new"); err != nil {
+				atomic.AddUint32(&atom, 1)
+			}
+
+		}()
+	}
+	wg.Wait()
+	if atom != 1 {
+		t.Errorf("Import is racy")
+	}
 }
 
 // checkAccounts checks that all known live accounts are present in the wallet list.
@@ -363,13 +462,13 @@ func checkEvents(t *testing.T, want []walletEvent, have []walletEvent) {
 }
 
 func tmpKeyStore(t *testing.T, encrypted bool) (string, *KeyStore) {
-	d, err := ioutil.TempDir("", "faf-keystore-test")
+	d, err := ioutil.TempDir("", "eth-keystore-test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	new := NewPlaintextKeyStore
+	newKs := NewPlaintextKeyStore
 	if encrypted {
-		new = func(kd string) *KeyStore { return NewKeyStore(kd, veryLightScryptN, veryLightScryptP) }
+		newKs = func(kd string) *KeyStore { return NewKeyStore(kd, veryLightScryptN, veryLightScryptP) }
 	}
-	return d, new(d)
+	return d, newKs(d)
 }

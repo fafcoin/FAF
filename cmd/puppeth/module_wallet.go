@@ -1,7 +1,18 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2017 The go-ethereum Authors
+// This file is part of go-ethereum.
+//
+// go-ethereum is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-ethereum is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -14,26 +25,26 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fafereum/go-fafereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // walletDockerfile is the Dockerfile required to run a web wallet.
 var walletDockerfile = `
-FROM puppfaf/wallet:latest
+FROM puppeth/wallet:latest
 
 ADD genesis.json /genesis.json
 
 RUN \
   echo 'node server.js &'                     > wallet.sh && \
-	echo 'gfaf --cache 512 init /genesis.json' >> wallet.sh && \
-	echo $'exec gfaf --networkid {{.NetworkID}} --port {{.NodePort}} --bootnodes {{.Bootnodes}} --fafstats \'{{.fafstats}}\' --cache=512 --rpc --rpcaddr=0.0.0.0 --rpccorsdomain "*" --rpcvhosts "*"' >> wallet.sh
+	echo 'geth --cache 512 init /genesis.json' >> wallet.sh && \
+	echo $'exec geth --networkid {{.NetworkID}} --port {{.NodePort}} --bootnodes {{.Bootnodes}} --ethstats \'{{.Ethstats}}\' --cache=512 --http --http.addr=0.0.0.0 --http.corsdomain "*" --http.vhosts "*"' >> wallet.sh
 
 RUN \
-	sed -i 's/PuppfafNetworkID/{{.NetworkID}}/g' dist/js/faferwallet-master.js && \
-	sed -i 's/PuppfafNetwork/{{.Network}}/g'     dist/js/faferwallet-master.js && \
-	sed -i 's/PuppfafDenom/{{.Denom}}/g'         dist/js/faferwallet-master.js && \
-	sed -i 's/PuppfafHost/{{.Host}}/g'           dist/js/faferwallet-master.js && \
-	sed -i 's/PuppfafRPCPort/{{.RPCPort}}/g'     dist/js/faferwallet-master.js
+	sed -i 's/PuppethNetworkID/{{.NetworkID}}/g' dist/js/etherwallet-master.js && \
+	sed -i 's/PuppethNetwork/{{.Network}}/g'     dist/js/etherwallet-master.js && \
+	sed -i 's/PuppethDenom/{{.Denom}}/g'         dist/js/etherwallet-master.js && \
+	sed -i 's/PuppethHost/{{.Host}}/g'           dist/js/etherwallet-master.js && \
+	sed -i 's/PuppethRPCPort/{{.RPCPort}}/g'     dist/js/etherwallet-master.js
 
 ENTRYPOINT ["/bin/sh", "wallet.sh"]
 `
@@ -53,10 +64,10 @@ services:
       - "{{.RPCPort}}:8545"{{if not .VHost}}
       - "{{.WebPort}}:80"{{end}}
     volumes:
-      - {{.Datadir}}:/root/.fafereum
+      - {{.Datadir}}:/root/.ethereum
     environment:
       - NODE_PORT={{.NodePort}}/tcp
-      - STATS={{.fafstats}}{{if .VHost}}
+      - STATS={{.Ethstats}}{{if .VHost}}
       - VIRTUAL_HOST={{.VHost}}
       - VIRTUAL_PORT=80{{end}}
     logging:
@@ -83,7 +94,7 @@ func deployWallet(client *sshClient, network string, bootnodes []string, config 
 		"NodePort":  config.nodePort,
 		"RPCPort":   config.rpcPort,
 		"Bootnodes": strings.Join(bootnodes, ","),
-		"fafstats":  config.fafstats,
+		"Ethstats":  config.ethstats,
 		"Host":      client.address,
 	})
 	files[filepath.Join(workdir, "Dockerfile")] = dockerfile.Bytes()
@@ -96,7 +107,7 @@ func deployWallet(client *sshClient, network string, bootnodes []string, config 
 		"RPCPort":  config.rpcPort,
 		"VHost":    config.webHost,
 		"WebPort":  config.webPort,
-		"fafstats": config.fafstats[:strings.Index(config.fafstats, ":")],
+		"Ethstats": config.ethstats[:strings.Index(config.ethstats, ":")],
 	})
 	files[filepath.Join(workdir, "docker-compose.yaml")] = composefile.Bytes()
 
@@ -121,7 +132,7 @@ type walletInfos struct {
 	genesis  []byte
 	network  int64
 	datadir  string
-	fafstats string
+	ethstats string
 	nodePort int
 	rpcPort  int
 	webHost  string
@@ -133,7 +144,7 @@ type walletInfos struct {
 func (info *walletInfos) Report() map[string]string {
 	report := map[string]string{
 		"Data directory":         info.datadir,
-		"fafstats username":      info.fafstats,
+		"Ethstats username":      info.ethstats,
 		"Node listener port ":    strconv.Itoa(info.nodePort),
 		"RPC listener port ":     strconv.Itoa(info.rpcPort),
 		"Website address ":       info.webHost,
@@ -142,8 +153,8 @@ func (info *walletInfos) Report() map[string]string {
 	return report
 }
 
-// checkWallet does a health-check against web wallet server to verify whfafer
-// it's running, and if yes, whfafer it's responsive.
+// checkWallet does a health-check against web wallet server to verify whether
+// it's running, and if yes, whether it's responsive.
 func checkWallet(client *sshClient, network string) (*walletInfos, error) {
 	// Inspect a possible web wallet container on the host
 	infos, err := inspectContainer(client, fmt.Sprintf("%s_wallet_1", network))
@@ -171,20 +182,20 @@ func checkWallet(client *sshClient, network string) (*walletInfos, error) {
 	// Run a sanity check to see if the devp2p and RPC ports are reachable
 	nodePort := infos.portmap[infos.envvars["NODE_PORT"]]
 	if err = checkPort(client.server, nodePort); err != nil {
-		log.Warn(fmt.Sprintf("Wallet devp2p port seems unreachable"), "server", client.server, "port", nodePort, "err", err)
+		log.Warn("Wallet devp2p port seems unreachable", "server", client.server, "port", nodePort, "err", err)
 	}
 	rpcPort := infos.portmap["8545/tcp"]
 	if err = checkPort(client.server, rpcPort); err != nil {
-		log.Warn(fmt.Sprintf("Wallet RPC port seems unreachable"), "server", client.server, "port", rpcPort, "err", err)
+		log.Warn("Wallet RPC port seems unreachable", "server", client.server, "port", rpcPort, "err", err)
 	}
 	// Assemble and return the useful infos
 	stats := &walletInfos{
-		datadir:  infos.volumes["/root/.fafereum"],
+		datadir:  infos.volumes["/root/.ethereum"],
 		nodePort: nodePort,
 		rpcPort:  rpcPort,
 		webHost:  host,
 		webPort:  webPort,
-		fafstats: infos.envvars["STATS"],
+		ethstats: infos.envvars["STATS"],
 	}
 	return stats, nil
 }

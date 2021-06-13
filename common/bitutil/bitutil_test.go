@@ -1,7 +1,6 @@
-// Copyright 2020 The go-fafjiadong wang
-// This file is part of the go-faf library.
-// The go-faf library is free software: you can redistribute it and/or modify
-
+// Copyright 2013 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 // Adapted from: https://golang.org/src/crypto/cipher/xor_test.go
 
@@ -191,6 +190,8 @@ func benchmarkBaseOR(b *testing.B, size int) {
 	}
 }
 
+var GloBool bool // Exported global will not be dead-code eliminated, at least not yet.
+
 // Benchmarks the potentially optimized bit testing performance.
 func BenchmarkFastTest1KB(b *testing.B) { benchmarkFastTest(b, 1024) }
 func BenchmarkFastTest2KB(b *testing.B) { benchmarkFastTest(b, 2048) }
@@ -198,9 +199,11 @@ func BenchmarkFastTest4KB(b *testing.B) { benchmarkFastTest(b, 4096) }
 
 func benchmarkFastTest(b *testing.B, size int) {
 	p := make([]byte, size)
+	a := false
 	for i := 0; i < b.N; i++ {
-		TestBytes(p)
+		a = a != TestBytes(p)
 	}
+	GloBool = a // Use of benchmark "result" to prevent total dead code elimination.
 }
 
 // Benchmarks the baseline bit testing performance.
@@ -210,7 +213,9 @@ func BenchmarkBaseTest4KB(b *testing.B) { benchmarkBaseTest(b, 4096) }
 
 func benchmarkBaseTest(b *testing.B, size int) {
 	p := make([]byte, size)
+	a := false
 	for i := 0; i < b.N; i++ {
-		safeTestBytes(p)
+		a = a != safeTestBytes(p)
 	}
+	GloBool = a // Use of benchmark "result" to prevent total dead code elimination.
 }
